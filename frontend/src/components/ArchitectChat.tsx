@@ -1,4 +1,7 @@
 import { useState, useRef, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useProjectStore } from "../store/projectStore";
 
 interface Message {
@@ -11,13 +14,14 @@ export default function ArchitectChat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const setBuildingSpec = useProjectStore((s) => s.setBuildingSpec);
+  const completeStep = useProjectStore((s) => s.completeStep);
+  const setStep = useProjectStore((s) => s.setStep);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Start the conversation on mount
   useEffect(() => {
     sendMessages([
       { role: "user", content: "Hi, I'd like to design a building." },
@@ -41,6 +45,8 @@ export default function ArchitectChat() {
 
       if (data.spec_complete && data.spec) {
         setBuildingSpec(data.spec);
+        completeStep("design");
+        setStep("place");
       }
     } catch {
       setMessages([
@@ -67,82 +73,55 @@ export default function ArchitectChat() {
     sendMessages(updated);
   }
 
-  // Skip the initial "Hi" message in the display
   const displayMessages = messages.slice(1);
 
   return (
-    <div
-      style={{ display: "flex", flexDirection: "column", height: "100%", gap: 8 }}
-    >
-      <h3 style={{ fontSize: 14, color: "#999", margin: 0 }}>
-        Architect AI
-      </h3>
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          minHeight: 0,
-        }}
-      >
-        {displayMessages.map((m, i) => (
-          <div
-            key={i}
-            style={{
-              alignSelf: m.role === "user" ? "flex-end" : "flex-start",
-              background: m.role === "user" ? "#2a4a7f" : "#1a1a2e",
-              padding: "8px 12px",
-              borderRadius: 8,
-              maxWidth: "90%",
-              fontSize: 13,
-              lineHeight: 1.5,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {m.content}
-          </div>
-        ))}
-        {loading && (
-          <div style={{ color: "#666", fontSize: 13, fontStyle: "italic" }}>
-            Thinking...
-          </div>
-        )}
-        <div ref={bottomRef} />
+    <div className="flex h-full flex-col gap-3">
+      <div>
+        <h2 className="text-sm font-semibold">Architect AI</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Describe your vision and I'll help define the specs
+        </p>
       </div>
-      <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8 }}>
-        <input
+
+      <ScrollArea className="flex-1 -mx-1 px-1">
+        <div className="flex flex-col gap-2 pb-2">
+          {displayMessages.map((m, i) => (
+            <div
+              key={i}
+              className={`max-w-[90%] rounded-lg px-3 py-2 text-[13px] leading-relaxed ${
+                m.role === "user"
+                  ? "self-end bg-primary text-primary-foreground"
+                  : "self-start bg-muted text-foreground"
+              }`}
+            >
+              {m.content}
+            </div>
+          ))}
+          {loading && (
+            <div className="self-start text-[13px] italic text-muted-foreground animate-pulse">
+              Thinking...
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+      </ScrollArea>
+
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Describe your vision..."
           disabled={loading}
-          style={{
-            flex: 1,
-            padding: "8px 12px",
-            background: "#111",
-            border: "1px solid #333",
-            borderRadius: 6,
-            color: "#eee",
-            fontSize: 13,
-            outline: "none",
-          }}
+          className="flex-1 text-[13px]"
         />
-        <button
+        <Button
           type="submit"
+          size="sm"
           disabled={loading || !input.trim()}
-          style={{
-            padding: "8px 16px",
-            background: "#4a90d9",
-            border: "none",
-            borderRadius: 6,
-            color: "#fff",
-            cursor: loading ? "wait" : "pointer",
-            fontSize: 13,
-          }}
         >
           Send
-        </button>
+        </Button>
       </form>
     </div>
   );

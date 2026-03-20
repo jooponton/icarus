@@ -1,3 +1,5 @@
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import type { BuildingSpec } from "../store/projectStore";
 
 interface Props {
@@ -15,27 +17,28 @@ export default function SpecPreview({ spec }: Props) {
   ];
 
   return (
-    <div>
-      <h3 style={{ fontSize: 13, color: "#4a90d9", margin: "0 0 8px" }}>
-        Building Spec Finalized
-      </h3>
-      <table style={{ width: "100%", fontSize: 12 }}>
-        <tbody>
-          {rows.map(([label, value]) => (
-            <tr key={label}>
-              <td style={{ color: "#888", padding: "2px 8px 2px 0" }}>
-                {label}
-              </td>
-              <td style={{ color: "#ccc" }}>{value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <Card className="bg-muted/30 p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+          Building Spec
+        </span>
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+          Final
+        </Badge>
+      </div>
+      <div className="space-y-1">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-baseline justify-between text-xs">
+            <span className="text-muted-foreground">{label}</span>
+            <span className="text-foreground/80 capitalize">{value}</span>
+          </div>
+        ))}
+      </div>
       {spec.notes && (
-        <p style={{ fontSize: 11, color: "#666", marginTop: 6 }}>
+        <p className="mt-2 text-[11px] text-muted-foreground/70 leading-relaxed">
           {spec.notes}
         </p>
       )}
-    </div>
+    </Card>
   );
 }
