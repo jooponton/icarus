@@ -46,3 +46,4 @@ colmap_workspace/
 # Logs
 *.log
 logs/
+.superdesign

@@ -54,32 +54,30 @@ export default function Navbar() {
                 />
               )}
               <Tooltip>
-                <TooltipTrigger>
-                  <button
-                    onClick={() => navigable && setStep(step.key)}
-                    className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                <TooltipTrigger
+                  onClick={() => navigable && setStep(step.key)}
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors ${
+                    isActive
+                      ? "bg-primary/10 font-semibold text-primary"
+                      : isCompleted
+                        ? "text-green-400 hover:bg-muted/50"
+                        : navigable
+                          ? "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                          : "text-muted-foreground/40 cursor-not-allowed"
+                  }`}
+                >
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] text-[10px] font-semibold ${
                       isActive
-                        ? "bg-primary/10 font-semibold text-primary"
+                        ? "border-primary text-primary"
                         : isCompleted
-                          ? "text-green-400 hover:bg-muted/50"
-                          : navigable
-                            ? "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                            : "text-muted-foreground/40 cursor-not-allowed"
+                          ? "border-green-400 bg-green-400 text-background"
+                          : "border-muted-foreground/30"
                     }`}
                   >
-                    <span
-                      className={`flex h-5 w-5 items-center justify-center rounded-full border-[1.5px] text-[10px] font-semibold ${
-                        isActive
-                          ? "border-primary text-primary"
-                          : isCompleted
-                            ? "border-green-400 bg-green-400 text-background"
-                            : "border-muted-foreground/30"
-                      }`}
-                    >
-                      {isCompleted ? "\u2713" : i + 1}
-                    </span>
-                    {step.label}
-                  </button>
+                    {isCompleted ? "\u2713" : i + 1}
+                  </span>
+                  {step.label}
                 </TooltipTrigger>
                 {!navigable && !isActive && (
                   <TooltipContent side="bottom">

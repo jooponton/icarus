@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -9,7 +8,6 @@ import {
 interface ToolButton {
   icon: string;
   label: string;
-  active?: boolean;
 }
 
 const tools: ToolButton[] = [
@@ -23,21 +21,18 @@ export default function ViewportToolbar() {
     <div className="absolute left-3 top-3 z-10 flex items-center gap-1 rounded-lg border border-border bg-card/80 px-1.5 py-1 backdrop-blur-md">
       {tools.map((tool) => (
         <Tooltip key={tool.label}>
-          <TooltipTrigger>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+          <TooltipTrigger
+            disabled
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md p-0 text-muted-foreground/40 cursor-default"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="currentColor"
             >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d={tool.icon} />
-              </svg>
-            </Button>
+              <path d={tool.icon} />
+            </svg>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             <p>{tool.label}</p>
@@ -46,14 +41,11 @@ export default function ViewportToolbar() {
       ))}
       <Separator orientation="vertical" className="mx-0.5 h-4" />
       <Tooltip>
-        <TooltipTrigger>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            Reset View
-          </Button>
+        <TooltipTrigger
+          disabled
+          className="inline-flex h-7 items-center justify-center rounded-md px-2 text-xs text-muted-foreground/40 cursor-default"
+        >
+          Reset View
         </TooltipTrigger>
         <TooltipContent side="bottom">
           <p>Reset camera to default position</p>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,24 +17,20 @@ export default function ArchitectChat() {
   const completeStep = useProjectStore((s) => s.completeStep);
   const setStep = useProjectStore((s) => s.setStep);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    sendMessages([
-      { role: "user", content: "Hi, I'd like to design a building." },
-    ]);
-  }, []);
-
-  async function sendMessages(msgs: Message[]) {
+  const sendMessages = useCallback(async (msgs: Message[], signal?: AbortSignal) => {
     setLoading(true);
     try {
       const res = await fetch("/api/architect/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ project_id: "current", messages: msgs }),
+        signal,
       });
       const data = await res.json();
       const updated: Message[] = [
@@ -48,7 +44,8 @@ export default function ArchitectChat() {
         completeStep("design");
         setStep("place");
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       setMessages([
         ...msgs,
         {
@@ -59,7 +56,17 @@ export default function ArchitectChat() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [setBuildingSpec, completeStep, setStep]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    sendMessages(
+      [{ role: "user", content: "Hi, I'd like to design a building." }],
+      controller.signal,
+    );
+    return () => controller.abort();
+  }, [sendMessages]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
