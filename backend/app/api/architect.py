@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from app.services.ai.architect import chat_with_architect
+
 router = APIRouter(tags=["architect"])
 
 
@@ -16,13 +18,5 @@ class ArchitectRequest(BaseModel):
 
 @router.post("/architect/chat")
 async def architect_chat(req: ArchitectRequest):
-    # TODO: integrate Claude API for the architect questionnaire
-    # This will guide users through building spec decisions:
-    # - building type, size, stories
-    # - design style, materials
-    # - structural requirements
-    # - site constraints from the reconstructed scene
-    return {
-        "reply": "Architect AI coming soon. What type of building are you envisioning?",
-        "spec_complete": False,
-    }
+    history = [{"role": m.role, "content": m.content} for m in req.messages]
+    return await chat_with_architect(history)
