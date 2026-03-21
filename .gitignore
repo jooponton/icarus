@@ -47,3 +47,4 @@ colmap_workspace/
 *.log
 logs/
 .superdesign
+.gstack/

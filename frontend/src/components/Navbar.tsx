@@ -16,6 +16,7 @@ export default function Navbar() {
   const completedSteps = useProjectStore((s) => s.completedSteps);
   const setStep = useProjectStore((s) => s.setStep);
 
+  const setChatDrawerOpen = useProjectStore((s) => s.setChatDrawerOpen);
   const currentIdx = WORKFLOW_STEPS.findIndex((s) => s.key === currentStep);
 
   function canNavigate(step: WorkflowStep): boolean {
@@ -92,9 +93,24 @@ export default function Navbar() {
 
       <div className="flex-1" />
 
-      <Button variant="outline" size="sm" className="text-xs">
-        New Project
-      </Button>
+      <div className="flex items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger
+            onClick={() => setChatDrawerOpen(true)}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Architect AI</p>
+          </TooltipContent>
+        </Tooltip>
+        <Button variant="outline" size="sm" className="text-xs">
+          New Project
+        </Button>
+      </div>
     </nav>
   );
 }

@@ -23,7 +23,7 @@ export default function ViewportToolbar() {
         <Tooltip key={tool.label}>
           <TooltipTrigger
             disabled
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md p-0 text-muted-foreground/40 cursor-default"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md p-0 text-muted-foreground/50 cursor-default"
           >
             <svg
               width="14"
@@ -43,7 +43,7 @@ export default function ViewportToolbar() {
       <Tooltip>
         <TooltipTrigger
           disabled
-          className="inline-flex h-7 items-center justify-center rounded-md px-2 text-xs text-muted-foreground/40 cursor-default"
+          className="inline-flex h-7 items-center justify-center rounded-md px-2 text-xs text-muted-foreground/50 cursor-default"
         >
           Reset View
         </TooltipTrigger>
