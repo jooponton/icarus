@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -6,6 +7,11 @@ import { useProjectStore, type PipelineStage } from "../store/projectStore";
 import StatusBadge from "./StatusBadge";
 
 const stageIcons: Record<string, React.ReactNode> = {
+  frames: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" /><line x1="7" y1="2" x2="7" y2="22" /><line x1="17" y1="2" x2="17" y2="22" /><line x1="2" y1="12" x2="22" y2="12" /><line x1="2" y1="7" x2="7" y2="7" /><line x1="2" y1="17" x2="7" y2="17" /><line x1="17" y1="7" x2="22" y2="7" /><line x1="17" y1="17" x2="22" y2="17" />
+    </svg>
+  ),
   feature: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
       <circle cx="12" cy="12" r="3" /><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
@@ -19,6 +25,11 @@ const stageIcons: Record<string, React.ReactNode> = {
   dense: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
       <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
+    </svg>
+  ),
+  convert: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
     </svg>
   ),
 };
@@ -49,6 +60,7 @@ function StageCard({ stage }: { stage: PipelineStage }) {
           <div className={`flex h-7 w-7 items-center justify-center rounded-md ${
             stage.status === "completed" ? "bg-emerald-500/15 text-emerald-400" :
             stage.status === "running" ? "bg-primary/15 text-primary" :
+            stage.status === "error" ? "bg-destructive/15 text-destructive" :
             "bg-muted/50 text-muted-foreground/60"
           }`}>
             {stageIcons[stage.id] ?? stageIcons.feature}
@@ -76,6 +88,12 @@ function StageCard({ stage }: { stage: PipelineStage }) {
           {stage.status === "running" && (
             <span className="text-primary/70">Processing...</span>
           )}
+          {stage.status === "error" && (
+            <span className="text-destructive/70 truncate max-w-[200px]">
+              {/* Show first part of error stats if available */}
+              Failed
+            </span>
+          )}
         </div>
       </div>
     </Card>
@@ -84,50 +102,90 @@ function StageCard({ stage }: { stage: PipelineStage }) {
 
 export default function ReconstructionPanel() {
   const pipelineStages = useProjectStore((s) => s.pipelineStages);
-  const paused = useProjectStore((s) => s.reconstructionPaused);
-  const setPaused = useProjectStore((s) => s.setReconstructionPaused);
+  const updateStage = useProjectStore((s) => s.updatePipelineStage);
+  const projectId = useProjectStore((s) => s.projectId);
   const completeStep = useProjectStore((s) => s.completeStep);
   const setStep = useProjectStore((s) => s.setStep);
-  const updateStage = useProjectStore((s) => s.updatePipelineStage);
+  const setSplatUrl = useProjectStore((s) => s.setSplatUrl);
+
+  const [isPolling, setIsPolling] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const allComplete = pipelineStages.every((s) => s.status === "completed");
   const anyRunning = pipelineStages.some((s) => s.status === "running");
+  const anyError = pipelineStages.some((s) => s.status === "error");
+  const notStarted = pipelineStages.every((s) => s.status === "pending");
 
-  function handleStartPipeline() {
-    // Simulate pipeline start
-    updateStage("feature", {
-      status: "running",
-      progress: 45,
-      stats: { points: "00421k", runtime: "0:57" },
-    });
-    updateStage("sparse", {
-      status: "pending",
-      progress: 0,
-      stats: { points: "—", reprojection: "—" },
-    });
-    updateStage("dense", {
-      status: "pending",
-      progress: 0,
-      stats: {},
-    });
-  }
+  const pollStatus = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const res = await fetch(`/api/reconstruct/${projectId}/status`);
+      if (!res.ok) return;
+      const data = await res.json();
 
-  function handleSimulateComplete() {
-    updateStage("feature", {
-      status: "completed",
-      progress: 100,
-      stats: { points: "1.2M", runtime: "3:42" },
-    });
-    updateStage("sparse", {
-      status: "completed",
-      progress: 100,
-      stats: { points: "842k", reprojection: "0.3px" },
-    });
-    updateStage("dense", {
-      status: "completed",
-      progress: 100,
-      stats: { faces: "2.1M", runtime: "8:15" },
-    });
+      for (const stage of data.stages) {
+        updateStage(stage.id, {
+          status: stage.status,
+          progress: stage.progress,
+          stats: stage.stats,
+        });
+      }
+
+      if (data.splat_ready) {
+        setSplatUrl(`/api/reconstruct/${projectId}/splat`);
+      }
+
+      // Stop polling when done
+      const isDone = data.stages.every(
+        (s: { status: string }) => s.status === "completed" || s.status === "error",
+      );
+      if (isDone) {
+        setIsPolling(false);
+      }
+    } catch {
+      // Silently retry on next interval
+    }
+  }, [projectId, updateStage, setSplatUrl]);
+
+  // Polling effect
+  useEffect(() => {
+    if (!isPolling) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+    pollingRef.current = setInterval(pollStatus, 2500);
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [isPolling, pollStatus]);
+
+  async function handleStartPipeline() {
+    if (!projectId) {
+      setStartError("No project ID — upload files first");
+      return;
+    }
+    setStartError(null);
+
+    try {
+      const res = await fetch(`/api/reconstruct/${projectId}`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ detail: "Unknown error" }));
+        setStartError(data.detail || `Error ${res.status}`);
+        return;
+      }
+      setIsPolling(true);
+      // Immediately poll once
+      await pollStatus();
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : "Failed to start pipeline");
+    }
   }
 
   function handleContinue() {
@@ -142,20 +200,8 @@ export default function ReconstructionPanel() {
         <div>
           <h2 className="text-sm font-semibold">Reconstruction Pipeline</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Setting: Default
+            COLMAP + 3D Gaussian Splatting
           </p>
-        </div>
-        <div className="flex gap-1.5">
-          {anyRunning && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs h-7"
-              onClick={() => setPaused(!paused)}
-            >
-              {paused ? "Resume" : "Pause"}
-            </Button>
-          )}
         </div>
       </div>
 
@@ -168,21 +214,30 @@ export default function ReconstructionPanel() {
         ))}
       </div>
 
+      {/* Error message */}
+      {startError && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+          {startError}
+        </div>
+      )}
+
       {/* Actions */}
-      {!anyRunning && !allComplete && (
+      {notStarted && !isPolling && (
         <Button onClick={handleStartPipeline} className="w-full">
           Start pipeline
         </Button>
       )}
 
-      {anyRunning && (
-        <Button
-          variant="outline"
-          onClick={handleSimulateComplete}
-          className="w-full text-xs"
-        >
-          Simulate completion
+      {anyError && !isPolling && (
+        <Button onClick={handleStartPipeline} variant="outline" className="w-full">
+          Retry pipeline
         </Button>
+      )}
+
+      {isPolling && (anyRunning || (!allComplete && !anyError)) && (
+        <div className="text-center text-xs text-muted-foreground py-2">
+          Pipeline running — this may take several minutes...
+        </div>
       )}
 
       {allComplete && (

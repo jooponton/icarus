@@ -9,11 +9,13 @@ import ViewportTabs from "./components/ViewportTabs";
 import FileBrowser from "./components/FileBrowser";
 import ChatDrawer from "./components/ChatDrawer";
 import BuildingScene from "./components/BuildingScene";
+import SplatViewer from "./components/SplatViewer";
 import { useProjectStore, type WorkflowStep } from "./store/projectStore";
 
 export default function App() {
   const currentStep = useProjectStore((s) => s.currentStep);
   const viewportMode = useProjectStore((s) => s.viewportMode);
+  const splatUrl = useProjectStore((s) => s.splatUrl);
   const setStep = useProjectStore((s) => s.setStep);
   const completeStep = useProjectStore((s) => s.completeStep);
 
@@ -43,14 +45,17 @@ export default function App() {
             <Canvas camera={{ position: [20, 15, 20], fov: 60 }}>
               <ambientLight intensity={0.4} />
               <directionalLight position={[10, 20, 10]} intensity={1} />
-              <Grid
-                infiniteGrid
-                cellSize={1}
-                sectionSize={5}
-                fadeDistance={100}
-                cellColor="#222"
-                sectionColor="#444"
-              />
+              {!splatUrl && (
+                <Grid
+                  infiniteGrid
+                  cellSize={1}
+                  sectionSize={5}
+                  fadeDistance={100}
+                  cellColor="#222"
+                  sectionColor="#444"
+                />
+              )}
+              <SplatViewer />
               <BuildingScene wireframe={viewportMode === "wireframe"} />
               <OrbitControls makeDefault />
             </Canvas>

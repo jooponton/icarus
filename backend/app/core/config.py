@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     processed_dir: Path = Path("data/processed")
     anthropic_api_key: str = ""
 
+    # Reconstruction tools
+    colmap_binary: str = "colmap"
+    ffmpeg_binary: str = "ffmpeg"
+    splat_training_iterations: int = 7000
+
     model_config = {"env_file": ".env"}
 
 

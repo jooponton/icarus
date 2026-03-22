@@ -43,6 +43,10 @@ models/weights/
 # COLMAP outputs
 colmap_workspace/
 
+# External tools & repos (local install)
+tools/
+gaussian-splatting/
+
 # Logs
 *.log
 logs/

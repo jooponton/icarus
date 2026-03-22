@@ -136,9 +136,11 @@ interface ProjectState {
   // Reconstruction
   pipelineStages: PipelineStage[];
   reconstructionPaused: boolean;
+  splatUrl: string | null;
   setPipelineStages: (stages: PipelineStage[]) => void;
   updatePipelineStage: (id: string, updates: Partial<PipelineStage>) => void;
   setReconstructionPaused: (v: boolean) => void;
+  setSplatUrl: (url: string | null) => void;
 
   // Design
   buildingSpec: BuildingSpec | null;
@@ -178,9 +180,11 @@ interface ProjectState {
 // --- Default pipeline stages ---
 
 const DEFAULT_PIPELINE: PipelineStage[] = [
+  { id: "frames", name: "Frame extraction", status: "pending", progress: 0, stats: {} },
   { id: "feature", name: "Feature extraction", status: "pending", progress: 0, stats: {} },
-  { id: "sparse", name: "Sparse point cloud", status: "pending", progress: 0, stats: {} },
-  { id: "dense", name: "Dense mesh generation", status: "pending", progress: 0, stats: {} },
+  { id: "sparse", name: "Sparse reconstruction", status: "pending", progress: 0, stats: {} },
+  { id: "dense", name: "Gaussian splatting", status: "pending", progress: 0, stats: {} },
+  { id: "convert", name: "Splat conversion", status: "pending", progress: 0, stats: {} },
 ];
 
 // --- Store ---
@@ -252,6 +256,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
   // Reconstruction
   pipelineStages: DEFAULT_PIPELINE,
   reconstructionPaused: false,
+  splatUrl: null,
+  setSplatUrl: (url) => set({ splatUrl: url }),
   setPipelineStages: (stages) => set({ pipelineStages: stages }),
   updatePipelineStage: (id, updates) =>
     set((s) => ({
