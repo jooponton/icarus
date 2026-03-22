@@ -1,11 +1,14 @@
 import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { useProjectStore, type UploadedFile } from "../store/projectStore";
 import StatusBadge from "./StatusBadge";
 
 let fileIdCounter = 0;
+
+const API_BASE = "/api";
 
 function formatSize(bytes: number) {
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`;
@@ -26,22 +29,29 @@ export default function UploadPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadedFiles = useProjectStore((s) => s.uploadedFiles);
   const addUploadedFiles = useProjectStore((s) => s.addUploadedFiles);
+  const updateUploadedFile = useProjectStore((s) => s.updateUploadedFile);
   const removeUploadedFile = useProjectStore((s) => s.removeUploadedFile);
   const processing = useProjectStore((s) => s.processing);
+  const setProcessing = useProjectStore((s) => s.setProcessing);
   const completeStep = useProjectStore((s) => s.completeStep);
   const setStep = useProjectStore((s) => s.setStep);
   const qualityChecks = useProjectStore((s) => s.qualityChecks);
   const setQualityChecks = useProjectStore((s) => s.setQualityChecks);
   const projectName = useProjectStore((s) => s.projectName);
   const projectId = useProjectStore((s) => s.projectId);
+  const setProjectMeta = useProjectStore((s) => s.setProjectMeta);
   const location = useProjectStore((s) => s.location);
   const targetType = useProjectStore((s) => s.targetType);
   const setFileBrowserOpen = useProjectStore((s) => s.setFileBrowserOpen);
   const [dragOver, setDragOver] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleFiles = useCallback(
-    (files: FileList | null) => {
+    async (files: FileList | null) => {
       if (!files || files.length === 0) return;
+      setUploadError(null);
+
+      // Create local file entries with "uploading" status
       const newFiles: UploadedFile[] = Array.from(files).map((f) => ({
         id: `file-${++fileIdCounter}`,
         name: f.name,
@@ -49,19 +59,76 @@ export default function UploadPanel() {
         type: f.type,
         resolution: getResolution(f),
         duration: getDuration(f),
-        status: "uploaded" as const,
+        status: "uploading" as const,
+        progress: 0,
         file: f,
       }));
       addUploadedFiles(newFiles);
+      setProcessing(true);
 
-      // Auto-run quality checks
-      if (newFiles.length >= 2) {
-        setQualityChecks({ gps: true, overlap: true, exposure: true });
-      } else {
-        setQualityChecks({ gps: true, overlap: null, exposure: true });
+      // Upload to backend
+      const formData = new FormData();
+      for (const f of newFiles) {
+        formData.append("files", f.file);
+      }
+      const currentProjectId = useProjectStore.getState().projectId;
+      if (currentProjectId) {
+        formData.append("project_id", currentProjectId);
+      }
+
+      try {
+        const xhr = new XMLHttpRequest();
+        const uploadPromise = new Promise<{ project_id: string; files: string[]; count: number }>((resolve, reject) => {
+          xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable) {
+              const pct = Math.round((e.loaded / e.total) * 100);
+              for (const f of newFiles) {
+                updateUploadedFile(f.id, { progress: pct });
+              }
+            }
+          });
+          xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(JSON.parse(xhr.responseText));
+            } else {
+              reject(new Error(`Upload failed: ${xhr.status}`));
+            }
+          });
+          xhr.addEventListener("error", () => reject(new Error("Network error")));
+          xhr.open("POST", `${API_BASE}/upload`);
+          xhr.send(formData);
+        });
+
+        const result = await uploadPromise;
+
+        // Update project ID from backend if not set
+        if (!useProjectStore.getState().projectId) {
+          setProjectMeta({ projectId: result.project_id });
+        }
+
+        // Mark all files as uploaded
+        for (const f of newFiles) {
+          updateUploadedFile(f.id, { status: "uploaded", progress: 100 });
+        }
+
+        // Run quality checks after successful upload
+        const totalFiles = useProjectStore.getState().uploadedFiles.length;
+        if (totalFiles >= 2) {
+          setQualityChecks({ gps: true, overlap: true, exposure: true });
+        } else {
+          setQualityChecks({ gps: true, overlap: null, exposure: true });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Upload failed";
+        setUploadError(message);
+        for (const f of newFiles) {
+          updateUploadedFile(f.id, { status: "error", progress: 0 });
+        }
+      } finally {
+        setProcessing(false);
       }
     },
-    [addUploadedFiles, setQualityChecks],
+    [addUploadedFiles, updateUploadedFile, setProcessing, setProjectMeta, setQualityChecks],
   );
 
   function handleStartReconstruction() {
@@ -136,6 +203,13 @@ export default function UploadPanel() {
           MP4, MOV, DNG, CR2, ARW, NEF
         </span>
       </button>
+
+      {/* Upload error */}
+      {uploadError && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+          {uploadError}
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex gap-2">
@@ -265,9 +339,15 @@ export default function UploadPanel() {
                     {f.duration && ` · ${f.duration}`}
                   </div>
                 </div>
-                <StatusBadge variant={f.status === "uploaded" ? "uploaded" : "queued"}>
-                  {f.status === "uploaded" ? "Uploaded" : "Queued"}
-                </StatusBadge>
+                {f.status === "uploading" ? (
+                  <div className="w-16">
+                    <Progress value={f.progress ?? 0} className="h-1.5" />
+                  </div>
+                ) : (
+                  <StatusBadge variant={f.status === "uploaded" ? "uploaded" : f.status === "error" ? "error" : "queued"}>
+                    {f.status === "uploaded" ? "Uploaded" : f.status === "error" ? "Error" : "Queued"}
+                  </StatusBadge>
+                )}
                 <button
                   onClick={() => removeUploadedFile(f.id)}
                   className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"

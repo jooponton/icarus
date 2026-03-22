@@ -8,6 +8,7 @@ import ViewportToolbar from "./components/ViewportToolbar";
 import ViewportTabs from "./components/ViewportTabs";
 import FileBrowser from "./components/FileBrowser";
 import ChatDrawer from "./components/ChatDrawer";
+import BuildingScene from "./components/BuildingScene";
 import { useProjectStore, type WorkflowStep } from "./store/projectStore";
 
 export default function App() {
@@ -50,17 +51,7 @@ export default function App() {
                 cellColor="#222"
                 sectionColor="#444"
               />
-              {viewportMode === "wireframe" && (
-                <mesh position={[0, 4, 0]}>
-                  <boxGeometry args={[8, 8, 6]} />
-                  <meshStandardMaterial
-                    color="#888"
-                    wireframe
-                    transparent
-                    opacity={0.6}
-                  />
-                </mesh>
-              )}
+              <BuildingScene wireframe={viewportMode === "wireframe"} />
               <OrbitControls makeDefault />
             </Canvas>
             {currentStep === "upload" && (

@@ -4,6 +4,7 @@ import { useProjectStore } from "../store/projectStore";
 import UploadPanel from "./UploadPanel";
 import ReconstructionPanel from "./ReconstructionPanel";
 import DesignPanel from "./DesignPanel";
+import PlacePanel from "./PlacePanel";
 import ExportPanel from "./ExportPanel";
 import SpecPreview from "./SpecPreview";
 
@@ -21,23 +22,7 @@ export default function Sidebar() {
 
           {currentStep === "design" && <DesignPanel />}
 
-          {currentStep === "place" && (
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-sm font-semibold">Place Building</h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Click on the scene to place your building. Drag to
-                  reposition.
-                </p>
-              </div>
-              {buildingSpec && <SpecPreview spec={buildingSpec} />}
-              <div className="rounded-lg border border-border bg-muted/50 p-8 text-center">
-                <p className="text-xs text-muted-foreground">
-                  3D placement coming soon
-                </p>
-              </div>
-            </div>
-          )}
+          {currentStep === "place" && <PlacePanel />}
 
           {currentStep === "export" && <ExportPanel />}
         </div>

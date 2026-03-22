@@ -36,6 +36,7 @@ export interface UploadedFile {
   resolution?: string;
   duration?: string;
   status: "uploading" | "uploaded" | "queued" | "error";
+  progress?: number;
   tags?: string[];
   file: File;
 }
@@ -60,6 +61,13 @@ export interface Measurement {
   id: string;
   label: string;
   distance: string;
+}
+
+export type TransformMode = "translate" | "rotate";
+
+export interface BuildingPlacement {
+  position: [number, number, number];
+  rotation: [number, number, number];
 }
 
 export type ViewportMode = "grid" | "street" | "wireframe";
@@ -101,6 +109,7 @@ interface ProjectState {
   qualityChecks: QualityChecks;
   setFootage: (files: File[]) => void;
   addUploadedFiles: (files: UploadedFile[]) => void;
+  updateUploadedFile: (id: string, updates: Partial<UploadedFile>) => void;
   removeUploadedFile: (id: string) => void;
   setProcessing: (v: boolean) => void;
   setProcessingProgress: (v: number) => void;
@@ -141,6 +150,12 @@ interface ProjectState {
   setMeasurements: (m: Measurement[]) => void;
   addMeasurement: (m: Measurement) => void;
   removeMeasurement: (id: string) => void;
+
+  // Placement
+  buildingPlacement: BuildingPlacement;
+  transformMode: TransformMode;
+  setBuildingPlacement: (p: Partial<BuildingPlacement>) => void;
+  setTransformMode: (m: TransformMode) => void;
 
   // Export
   exportFormat: ExportFormat;
@@ -191,6 +206,12 @@ export const useProjectStore = create<ProjectState>((set) => ({
   setFootage: (files) => set({ footage: files }),
   addUploadedFiles: (files) =>
     set((s) => ({ uploadedFiles: [...s.uploadedFiles, ...files] })),
+  updateUploadedFile: (id, updates) =>
+    set((s) => ({
+      uploadedFiles: s.uploadedFiles.map((f) =>
+        f.id === id ? { ...f, ...updates } : f,
+      ),
+    })),
   removeUploadedFile: (id) =>
     set((s) => ({
       uploadedFiles: s.uploadedFiles.filter((f) => f.id !== id),
@@ -250,6 +271,13 @@ export const useProjectStore = create<ProjectState>((set) => ({
     set((s) => ({
       measurements: s.measurements.filter((m) => m.id !== id),
     })),
+
+  // Placement
+  buildingPlacement: { position: [0, 0, 0], rotation: [0, 0, 0] },
+  transformMode: "translate",
+  setBuildingPlacement: (p) =>
+    set((s) => ({ buildingPlacement: { ...s.buildingPlacement, ...p } })),
+  setTransformMode: (m) => set({ transformMode: m }),
 
   // Export
   exportFormat: "revit",
