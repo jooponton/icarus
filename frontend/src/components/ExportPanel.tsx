@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { useProjectStore, type ExportFormat } from "../store/projectStore";
+import { exportGLTF, exportOBJ, exportSTL } from "../lib/exportScene";
 import StatusBadge from "./StatusBadge";
 
 const FORMAT_PRESETS: {
@@ -12,19 +14,19 @@ const FORMAT_PRESETS: {
   description: string;
 }[] = [
   {
-    key: "revit",
-    label: "Revit (RVT mesh)",
-    description: "3D mesh with materials for Autodesk Revit",
+    key: "gltf",
+    label: "glTF Binary (.glb)",
+    description: "Universal 3D format with materials — Revit, Blender, web",
   },
   {
-    key: "autocad",
-    label: "AutoCAD (DWG/DXF)",
-    description: "2D plans + 3D mesh for AutoCAD",
+    key: "obj",
+    label: "OBJ Wavefront (.obj)",
+    description: "Widely supported mesh format — AutoCAD, SketchUp, 3ds Max",
   },
   {
-    key: "ifc",
-    label: "IFC BIM exchange",
-    description: "Open BIM format for interoperability",
+    key: "stl",
+    label: "STL Mesh (.stl)",
+    description: "Solid geometry for 3D printing and CAD exchange",
   },
 ];
 
@@ -33,6 +35,27 @@ export default function ExportPanel() {
   const setExportFormat = useProjectStore((s) => s.setExportFormat);
   const exportBundle = useProjectStore((s) => s.exportBundle);
   const setExportBundle = useProjectStore((s) => s.setExportBundle);
+  const sceneGroup = useProjectStore((s) => s.sceneGroup);
+  const projectName = useProjectStore((s) => s.projectName);
+  const buildingSpec = useProjectStore((s) => s.buildingSpec);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleExport() {
+    if (!sceneGroup) return;
+    setExporting(true);
+    const name = projectName.replace(/\s+/g, "_").toLowerCase() || "icarus_export";
+    try {
+      if (exportFormat === "gltf") {
+        await exportGLTF(sceneGroup, name);
+      } else if (exportFormat === "obj") {
+        exportOBJ(sceneGroup, name);
+      } else {
+        exportSTL(sceneGroup, name);
+      }
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="space-y-5 pb-4">
@@ -117,25 +140,35 @@ export default function ExportPanel() {
       {/* Export preview stats */}
       <Card className="bg-muted/20 p-3 space-y-2">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-          Export preview
+          Building summary
         </span>
         <div className="grid grid-cols-3 gap-2 text-center">
           <div>
-            <div className="text-[14px] font-semibold tabular-nums">13.4</div>
-            <div className="text-[9px] text-muted-foreground">GB</div>
+            <div className="text-[14px] font-semibold tabular-nums">
+              {buildingSpec?.stories ?? "—"}
+            </div>
+            <div className="text-[9px] text-muted-foreground">Stories</div>
           </div>
           <div>
-            <div className="text-[14px] font-semibold tabular-nums">Tile</div>
+            <div className="text-[14px] font-semibold tabular-nums">
+              {buildingSpec ? `${buildingSpec.footprint_width}×${buildingSpec.footprint_depth}` : "—"}
+            </div>
+            <div className="text-[9px] text-muted-foreground">Footprint (m)</div>
+          </div>
+          <div>
+            <div className="text-[14px] font-semibold tabular-nums">
+              {exportFormat === "gltf" ? "GLB" : exportFormat === "obj" ? "OBJ" : "STL"}
+            </div>
             <div className="text-[9px] text-muted-foreground">Format</div>
-          </div>
-          <div>
-            <div className="text-[14px] font-semibold tabular-nums">4.6M</div>
-            <div className="text-[9px] text-muted-foreground">Faces</div>
           </div>
         </div>
       </Card>
 
-      <Button className="w-full gap-2">
+      <Button
+        className="w-full gap-2"
+        onClick={handleExport}
+        disabled={!sceneGroup || exporting}
+      >
         <svg
           width="14"
           height="14"
@@ -150,8 +183,14 @@ export default function ExportPanel() {
           <polyline points="7 10 12 15 17 10" />
           <line x1="12" y1="15" x2="12" y2="3" />
         </svg>
-        Download
+        {exporting ? "Exporting..." : "Download"}
       </Button>
+
+      {!sceneGroup && (
+        <p className="text-[10px] text-muted-foreground/60 text-center">
+          No building in scene — complete the Place step first
+        </p>
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import * as THREE from "three";
 
 export type WorkflowStep =
   | "upload"
@@ -71,7 +72,7 @@ export interface BuildingPlacement {
 }
 
 export type ViewportMode = "grid" | "street" | "wireframe";
-export type ExportFormat = "revit" | "autocad" | "ifc";
+export type ExportFormat = "gltf" | "obj" | "stl";
 export type ExportPreviewTab =
   | "preview"
   | "dual"
@@ -156,6 +157,10 @@ interface ProjectState {
   transformMode: TransformMode;
   setBuildingPlacement: (p: Partial<BuildingPlacement>) => void;
   setTransformMode: (m: TransformMode) => void;
+
+  // Scene ref (for export)
+  sceneGroup: THREE.Group | null;
+  setSceneGroup: (g: THREE.Group | null) => void;
 
   // Export
   exportFormat: ExportFormat;
@@ -279,8 +284,12 @@ export const useProjectStore = create<ProjectState>((set) => ({
     set((s) => ({ buildingPlacement: { ...s.buildingPlacement, ...p } })),
   setTransformMode: (m) => set({ transformMode: m }),
 
+  // Scene ref
+  sceneGroup: null,
+  setSceneGroup: (g) => set({ sceneGroup: g }),
+
   // Export
-  exportFormat: "revit",
+  exportFormat: "gltf",
   exportBundle: { obj: true, pointCloud: false, texturedMesh: true },
   exportPreviewTab: "preview",
   setExportFormat: (f) => set({ exportFormat: f }),

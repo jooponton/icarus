@@ -11,11 +11,21 @@ export default function BuildingScene({ wireframe = false }: { wireframe?: boole
   const setBuildingPlacement = useProjectStore((s) => s.setBuildingPlacement);
   const transformMode = useProjectStore((s) => s.transformMode);
 
+  const setSceneGroup = useProjectStore((s) => s.setSceneGroup);
+
   const groupRef = useRef<THREE.Group>(null);
   const transformRef = useRef<React.ComponentRef<typeof TransformControls>>(null);
 
   const isPlaceStep = currentStep === "place";
   const showBuilding = buildingSpec && (currentStep === "place" || currentStep === "export");
+
+  // Register group ref for export
+  useEffect(() => {
+    if (showBuilding && groupRef.current) {
+      setSceneGroup(groupRef.current);
+    }
+    return () => setSceneGroup(null);
+  }, [showBuilding, setSceneGroup]);
 
   // Sync transform changes back to store
   useEffect(() => {
