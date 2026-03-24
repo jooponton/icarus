@@ -46,15 +46,16 @@ async def extract_frames(
             str(output_dir / f"{prefix}_%05d.jpg"),
             "-y",
         ]
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await proc.communicate()
 
-        if proc.returncode != 0:
-            error_msg = stderr.decode(errors="replace")[-500:]
+        import subprocess
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: subprocess.run(cmd, capture_output=True),
+        )
+
+        if result.returncode != 0:
+            error_msg = result.stderr.decode(errors="replace")[-500:]
             logger.error("ffmpeg failed for %s: %s", video.name, error_msg)
             update_stage(project_id, "frames", error=f"ffmpeg failed: {error_msg}")
             raise RuntimeError(f"ffmpeg failed for {video.name}")

@@ -36,7 +36,7 @@ async def run_colmap_pipeline(
             "--database_path", str(db_path),
             "--image_path", str(image_dir),
             "--ImageReader.single_camera", "1",
-            "--SiftExtraction.use_gpu", "1",
+            "--FeatureExtraction.use_gpu", "1",
         ],
         project_id=project_id,
         stage_id="feature",
@@ -60,7 +60,7 @@ async def run_colmap_pipeline(
         [
             settings.colmap_binary, "exhaustive_matcher",
             "--database_path", str(db_path),
-            "--SiftMatching.use_gpu", "1",
+            "--FeatureMatching.use_gpu", "1",
         ],
         project_id=project_id,
         stage_id="sparse",
@@ -111,48 +111,55 @@ async def _run_colmap_command(
     progress_offset: int = 0,
     progress_cap: int = 100,
 ) -> None:
-    """Run a COLMAP command and parse output for progress updates."""
-    logger.info("Running: %s", " ".join(cmd))
+    """Run a COLMAP command and parse output for progress updates.
 
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
+    Uses subprocess.Popen in a thread pool for Windows compatibility
+    (asyncio.create_subprocess_exec can fail in BackgroundTask context).
+    """
+    import subprocess
+    import threading
+
+    logger.info("Running: %s", " ".join(cmd))
 
     pattern = re.compile(progress_pattern) if progress_pattern else None
     range_size = progress_cap - progress_offset
 
-    while True:
-        line = await proc.stdout.readline()
-        if not line:
-            break
-        text = line.decode(errors="replace").strip()
-        if not text:
-            continue
+    def _run():
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
 
-        # Parse progress from output
-        if pattern:
-            m = pattern.search(text)
-            if m:
-                groups = m.groups()
-                if len(groups) == 2:
-                    current, total = int(groups[0]), int(groups[1])
-                    pct = progress_offset + int((current / max(total, 1)) * range_size)
-                elif len(groups) == 1 and total_hint > 0:
-                    current = int(groups[0])
-                    pct = progress_offset + int((current / total_hint) * range_size)
-                else:
-                    continue
-                pct = min(pct, progress_cap)
-                update_stage(project_id, stage_id, progress=pct)
+        for raw_line in proc.stdout:
+            text = raw_line.decode(errors="replace").strip()
+            if not text:
+                continue
 
-    await proc.wait()
-    if proc.returncode != 0:
-        error_msg = f"COLMAP command exited with code {proc.returncode}"
-        logger.error(error_msg)
-        update_stage(project_id, stage_id, error=error_msg)
-        raise RuntimeError(error_msg)
+            if pattern:
+                m = pattern.search(text)
+                if m:
+                    groups = m.groups()
+                    if len(groups) == 2:
+                        current, total = int(groups[0]), int(groups[1])
+                        pct = progress_offset + int((current / max(total, 1)) * range_size)
+                    elif len(groups) == 1 and total_hint > 0:
+                        current = int(groups[0])
+                        pct = progress_offset + int((current / total_hint) * range_size)
+                    else:
+                        continue
+                    pct = min(pct, progress_cap)
+                    update_stage(project_id, stage_id, progress=pct)
+
+        proc.wait()
+        if proc.returncode != 0:
+            error_msg = f"COLMAP command exited with code {proc.returncode}"
+            logger.error(error_msg)
+            update_stage(project_id, stage_id, error=error_msg)
+            raise RuntimeError(error_msg)
+
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, _run)
 
 
 def _count_points(points3d_path: Path) -> int:
