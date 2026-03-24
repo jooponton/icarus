@@ -11,13 +11,14 @@ export default function BuildingScene({ wireframe = false }: { wireframe?: boole
   const setBuildingPlacement = useProjectStore((s) => s.setBuildingPlacement);
   const transformMode = useProjectStore((s) => s.transformMode);
 
+  const meshDetailLevel = useProjectStore((s) => s.meshDetailLevel);
   const setSceneGroup = useProjectStore((s) => s.setSceneGroup);
 
   const groupRef = useRef<THREE.Group>(null);
   const transformRef = useRef<React.ComponentRef<typeof TransformControls>>(null);
 
   const isPlaceStep = currentStep === "place";
-  const showBuilding = buildingSpec && (currentStep === "place" || currentStep === "export");
+  const showBuilding = buildingSpec && (currentStep === "design" || currentStep === "place" || currentStep === "export");
 
   // Register group ref for export
   useEffect(() => {
@@ -55,7 +56,7 @@ export default function BuildingScene({ wireframe = false }: { wireframe?: boole
         position={placement.position}
         rotation={placement.rotation}
       >
-        <ProceduralBuilding spec={buildingSpec} wireframe={wireframe} />
+        <ProceduralBuilding spec={buildingSpec} wireframe={wireframe} detailLevel={meshDetailLevel} />
       </group>
 
       {isPlaceStep && groupRef.current && (

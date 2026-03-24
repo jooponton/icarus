@@ -58,6 +58,20 @@ export interface PipelineStage {
   stats: Record<string, string>;
 }
 
+export interface ValidationMessage {
+  code: string;
+  message: string;
+  field: string;
+  severity: string;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: ValidationMessage[];
+  warnings: ValidationMessage[];
+  scores: Record<string, number>;
+}
+
 export interface Measurement {
   id: string;
   label: string;
@@ -145,6 +159,8 @@ interface ProjectState {
   // Design
   buildingSpec: BuildingSpec | null;
   setBuildingSpec: (spec: BuildingSpec) => void;
+  validationResult: ValidationResult | null;
+  setValidationResult: (r: ValidationResult | null) => void;
   meshSmoothing: number;
   meshDetailLevel: number;
   measurements: Measurement[];
@@ -270,6 +286,8 @@ export const useProjectStore = create<ProjectState>((set) => ({
   // Design
   buildingSpec: null,
   setBuildingSpec: (spec) => set({ buildingSpec: spec }),
+  validationResult: null,
+  setValidationResult: (r) => set({ validationResult: r }),
   meshSmoothing: 50,
   meshDetailLevel: 75,
   measurements: [],

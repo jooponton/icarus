@@ -1,7 +1,9 @@
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import { useProjectStore } from "../store/projectStore";
 import StatusBadge from "./StatusBadge";
 
@@ -15,6 +17,37 @@ export default function DesignPanel() {
   const removeMeasurement = useProjectStore((s) => s.removeMeasurement);
   const completeStep = useProjectStore((s) => s.completeStep);
   const setStep = useProjectStore((s) => s.setStep);
+  const buildingSpec = useProjectStore((s) => s.buildingSpec);
+  const validationResult = useProjectStore((s) => s.validationResult);
+  const setValidationResult = useProjectStore((s) => s.setValidationResult);
+
+  // Validate spec when it changes
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => {
+    if (!buildingSpec) {
+      setValidationResult(null);
+      return;
+    }
+
+    // Debounce validation calls
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/generate/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildingSpec),
+        });
+        if (res.ok) {
+          setValidationResult(await res.json());
+        }
+      } catch {
+        // Backend may not be running — don't block the UI
+      }
+    }, 300);
+
+    return () => clearTimeout(timerRef.current);
+  }, [buildingSpec, setValidationResult]);
 
   function handleAddMeasurement() {
     const id = `m-${Date.now()}`;
@@ -28,6 +61,8 @@ export default function DesignPanel() {
     completeStep("design");
     setStep("place");
   }
+
+  const hasErrors = validationResult && !validationResult.valid;
 
   return (
     <div className="space-y-5 pb-4">
@@ -134,21 +169,71 @@ export default function DesignPanel() {
 
       <Separator />
 
-      {/* Quality analysis */}
+      {/* Structural validation */}
       <div className="space-y-3">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Quality analysis
+          Structural validation
         </span>
-        <Card className="bg-muted/20 p-3 space-y-2">
-          <QualityRow label="Mesh integrity" value="98.2%" good />
-          <QualityRow label="Coverage" value="94.7%" good />
-          <QualityRow label="Alignment error" value="0.3px" good />
-          <QualityRow label="Noise ratio" value="1.2%" good />
-        </Card>
+
+        {validationResult ? (
+          <>
+            <Card className="bg-muted/20 p-3 space-y-2">
+              <QualityRow
+                label="Structural plausibility"
+                value={`${validationResult.scores.structural_plausibility ?? 0}%`}
+                good={(validationResult.scores.structural_plausibility ?? 0) >= 70}
+              />
+              <QualityRow
+                label="Proportion score"
+                value={`${validationResult.scores.proportion_score ?? 0}%`}
+                good={(validationResult.scores.proportion_score ?? 0) >= 70}
+              />
+              <QualityRow
+                label="Material compatibility"
+                value={`${validationResult.scores.material_compatibility ?? 0}%`}
+                good={(validationResult.scores.material_compatibility ?? 0) >= 70}
+              />
+            </Card>
+
+            {/* Errors */}
+            {validationResult.errors.length > 0 && (
+              <div className="space-y-1.5">
+                {validationResult.errors.map((e) => (
+                  <div key={e.code} className="flex items-start gap-2 text-[11px]">
+                    <Badge variant="destructive" className="text-[9px] px-1.5 py-0 shrink-0">
+                      Error
+                    </Badge>
+                    <span className="text-destructive">{e.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Warnings */}
+            {validationResult.warnings.length > 0 && (
+              <div className="space-y-1.5">
+                {validationResult.warnings.map((w) => (
+                  <div key={w.code} className="flex items-start gap-2 text-[11px]">
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 shrink-0 border-yellow-500 text-yellow-500">
+                      Warn
+                    </Badge>
+                    <span className="text-yellow-500">{w.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <Card className="bg-muted/20 p-3 space-y-2">
+            <QualityRow label="Structural plausibility" value="--" good />
+            <QualityRow label="Proportion score" value="--" good />
+            <QualityRow label="Material compatibility" value="--" good />
+          </Card>
+        )}
       </div>
 
-      <Button onClick={handleContinue} className="w-full">
-        Continue to Place
+      <Button onClick={handleContinue} className="w-full" disabled={!!hasErrors}>
+        {hasErrors ? "Fix errors to continue" : "Continue to Place"}
       </Button>
     </div>
   );
