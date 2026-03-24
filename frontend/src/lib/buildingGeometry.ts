@@ -18,11 +18,11 @@ export function createWindowGrid(
 ): { glass: THREE.BufferGeometry; frame: THREE.BufferGeometry | null } {
   const winW = style.windowWidth;
   const winH = style.windowHeight;
-  const spacing = style.windowSpacingH / detailMultiplier;
+  const spacing = style.windowSpacingH / Math.max(detailMultiplier, 0.1);
 
   // How many windows fit across this face (with margin on edges)
-  const margin = 1.0;
-  const usableWidth = faceWidth - margin * 2;
+  const margin = Math.min(1.0, faceWidth * 0.15);
+  const usableWidth = Math.max(faceWidth * 0.2, faceWidth - margin * 2);
   const cols = Math.max(1, Math.floor(usableWidth / spacing));
   const actualSpacing = usableWidth / cols;
 
@@ -151,7 +151,7 @@ export function createPilasterGeometry(
 ): THREE.BufferGeometry {
   const geos: THREE.BufferGeometry[] = [];
   const spacing = Math.max(3.0, faceWidth / Math.max(2, Math.floor(faceWidth / 4)));
-  const count = Math.floor(faceWidth / spacing) + 1;
+  const count = Math.max(2, Math.floor(faceWidth / spacing));
 
   for (let i = 0; i < count; i++) {
     const x = -faceWidth / 2 + i * spacing;
@@ -263,18 +263,22 @@ export function createButterflyRoof(
   ]);
 
   const indices = [
-    // Left slope (top)
+    // Left slope (top surface)
     0, 2, 3, 0, 3, 1,
-    // Right slope (top)
+    // Right slope (top surface)
     2, 4, 5, 2, 5, 3,
-    // Left fascia
+    // Left fascia (outer wall)
     6, 0, 1, 6, 1, 7,
-    // Right fascia
+    // Right fascia (outer wall)
     4, 8, 9, 4, 9, 5,
-    // Front edge
-    6, 8, 4, 6, 4, 0, 0, 4, 2,
-    // Back edge
-    7, 1, 5, 7, 5, 9, 1, 3, 5,
+    // Front panel (left half)
+    6, 8, 2, 6, 2, 0,
+    // Front panel (right half)
+    8, 4, 2,
+    // Back panel (left half)
+    7, 1, 3, 7, 3, 9,
+    // Back panel (right half)
+    9, 3, 5,
   ];
 
   const geo = new THREE.BufferGeometry();
@@ -292,7 +296,11 @@ export function createButterflyRoof(
  */
 function mergeGeometries(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
   if (geos.length === 0) {
-    return new THREE.BufferGeometry();
+    const empty = new THREE.BufferGeometry();
+    empty.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3), 3));
+    empty.setAttribute("normal", new THREE.BufferAttribute(new Float32Array(3), 3));
+    empty.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(2), 2));
+    return empty;
   }
   if (geos.length === 1) {
     return geos[0]!.clone();

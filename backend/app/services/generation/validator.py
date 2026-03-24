@@ -48,11 +48,37 @@ def validate_building_spec(spec: BuildingSpec) -> ValidationResult:
     bt = spec.building_type.lower()
     material = spec.material.lower()
     roof = spec.roof_style.lower()
+
+    # Validate positive dimensions first
+    if spec.footprint_width <= 0 or spec.footprint_depth <= 0:
+        errors.append(ValidationMessage(
+            code="INVALID_DIMENSIONS",
+            message="Footprint width and depth must be positive",
+            field="footprint_width",
+            severity="error",
+        ))
+        return ValidationResult(
+            valid=False, errors=errors, warnings=warnings,
+            scores={"structural_plausibility": 0, "proportion_score": 0, "material_compatibility": 0},
+        )
+
+    if spec.stories <= 0:
+        errors.append(ValidationMessage(
+            code="INVALID_STORIES",
+            message="Building must have at least 1 story",
+            field="stories",
+            severity="error",
+        ))
+        return ValidationResult(
+            valid=False, errors=errors, warnings=warnings,
+            scores={"structural_plausibility": 0, "proportion_score": 0, "material_compatibility": 0},
+        )
+
     footprint_area = spec.footprint_width * spec.footprint_depth
-    aspect_ratio = spec.footprint_width / max(spec.footprint_depth, 0.1)
+    aspect_ratio = spec.footprint_width / spec.footprint_depth
     total_height = spec.stories * 3.2
     max_dim = max(spec.footprint_width, spec.footprint_depth)
-    height_ratio = total_height / max(max_dim, 0.1)
+    height_ratio = total_height / max_dim
 
     rules = BUILDING_TYPE_RULES.get(bt)
 

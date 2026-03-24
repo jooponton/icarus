@@ -23,6 +23,7 @@ export default function DesignPanel() {
 
   // Validate spec when it changes
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const abortRef = useRef<AbortController>(undefined);
   useEffect(() => {
     if (!buildingSpec) {
       setValidationResult(null);
@@ -31,22 +32,29 @@ export default function DesignPanel() {
 
     // Debounce validation calls
     clearTimeout(timerRef.current);
+    abortRef.current?.abort();
     timerRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      abortRef.current = controller;
       try {
         const res = await fetch("http://localhost:8000/api/generate/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildingSpec),
+          signal: controller.signal,
         });
         if (res.ok) {
           setValidationResult(await res.json());
         }
       } catch {
-        // Backend may not be running — don't block the UI
+        // Aborted or backend not running — don't block the UI
       }
     }, 300);
 
-    return () => clearTimeout(timerRef.current);
+    return () => {
+      clearTimeout(timerRef.current);
+      abortRef.current?.abort();
+    };
   }, [buildingSpec, setValidationResult]);
 
   function handleAddMeasurement() {
