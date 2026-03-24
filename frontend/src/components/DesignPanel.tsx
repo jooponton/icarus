@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { useProjectStore } from "../store/projectStore";
+import { useTextureGeneration } from "../hooks/useTextureGeneration";
 import StatusBadge from "./StatusBadge";
 
 export default function DesignPanel() {
@@ -20,6 +21,10 @@ export default function DesignPanel() {
   const buildingSpec = useProjectStore((s) => s.buildingSpec);
   const validationResult = useProjectStore((s) => s.validationResult);
   const setValidationResult = useProjectStore((s) => s.setValidationResult);
+  const textureStatus = useProjectStore((s) => s.textureStatus);
+
+  // Auto-trigger texture generation when spec changes
+  useTextureGeneration();
 
   // Validate spec when it changes
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -239,6 +244,26 @@ export default function DesignPanel() {
           </Card>
         )}
       </div>
+
+      {/* Texture generation status */}
+      {textureStatus === "generating" && (
+        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+          Generating textures...
+        </div>
+      )}
+      {textureStatus === "ready" && (
+        <div className="flex items-center gap-2 text-[11px] text-emerald-400">
+          <div className="h-2 w-2 rounded-full bg-emerald-400" />
+          Textures applied
+        </div>
+      )}
+      {textureStatus === "error" && (
+        <div className="flex items-center gap-2 text-[11px] text-destructive">
+          <div className="h-2 w-2 rounded-full bg-destructive" />
+          Texture generation failed
+        </div>
+      )}
 
       <Button onClick={handleContinue} className="w-full" disabled={!!hasErrors}>
         {hasErrors ? "Fix errors to continue" : "Continue to Place"}

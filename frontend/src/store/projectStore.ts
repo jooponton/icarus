@@ -170,6 +170,14 @@ interface ProjectState {
   addMeasurement: (m: Measurement) => void;
   removeMeasurement: (id: string) => void;
 
+  // Textures
+  textureStatus: "idle" | "generating" | "ready" | "error";
+  textureSpecHash: string | null;
+  textureUrls: Record<string, string> | null;
+  setTextureStatus: (s: "idle" | "generating" | "ready" | "error") => void;
+  setTextureSpecHash: (h: string | null) => void;
+  setTextureUrls: (urls: Record<string, string> | null) => void;
+
   // Placement
   buildingPlacement: BuildingPlacement;
   transformMode: TransformMode;
@@ -300,6 +308,14 @@ export const useProjectStore = create<ProjectState>((set) => ({
     set((s) => ({
       measurements: s.measurements.filter((m) => m.id !== id),
     })),
+
+  // Textures
+  textureStatus: "idle",
+  textureSpecHash: null,
+  textureUrls: null,
+  setTextureStatus: (s) => set({ textureStatus: s }),
+  setTextureSpecHash: (h) => set({ textureSpecHash: h }),
+  setTextureUrls: (urls) => set({ textureUrls: urls }),
 
   // Placement
   buildingPlacement: { position: [0, 0, 0], rotation: [0, 0, 0] },

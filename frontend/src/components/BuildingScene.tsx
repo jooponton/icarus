@@ -12,6 +12,7 @@ export default function BuildingScene({ wireframe = false }: { wireframe?: boole
   const transformMode = useProjectStore((s) => s.transformMode);
 
   const meshDetailLevel = useProjectStore((s) => s.meshDetailLevel);
+  const textureUrls = useProjectStore((s) => s.textureUrls);
   const setSceneGroup = useProjectStore((s) => s.setSceneGroup);
 
   const groupRef = useRef<THREE.Group>(null);
@@ -56,7 +57,7 @@ export default function BuildingScene({ wireframe = false }: { wireframe?: boole
         position={placement.position}
         rotation={placement.rotation}
       >
-        <ProceduralBuilding spec={buildingSpec} wireframe={wireframe} detailLevel={meshDetailLevel} />
+        <ProceduralBuilding spec={buildingSpec} wireframe={wireframe} detailLevel={meshDetailLevel} textureUrls={textureUrls} />
       </group>
 
       {isPlaceStep && groupRef.current && (
