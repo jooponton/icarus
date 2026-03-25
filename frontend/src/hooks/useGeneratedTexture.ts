@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 
 /**
@@ -13,35 +13,45 @@ export function useGeneratedTexture(
 ): { map: THREE.Texture | null; color: string } {
   const loaderRef = useRef(new THREE.TextureLoader());
   const textureRef = useRef<THREE.Texture | null>(null);
+  const [loaded, setLoaded] = useState<THREE.Texture | null>(null);
 
-  const texture = useMemo(() => {
-    if (!url) return null;
-
-    // Dispose old texture
+  useEffect(() => {
+    // Dispose previous texture
     if (textureRef.current) {
       textureRef.current.dispose();
       textureRef.current = null;
     }
+    setLoaded(null);
 
-    const tex = loaderRef.current.load(url);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(repeatX, repeatY);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    textureRef.current = tex;
-    return tex;
-  }, [url, repeatX, repeatY]);
+    if (!url) return;
 
-  // Cleanup on unmount
-  useEffect(() => {
+    const tex = loaderRef.current.load(
+      url,
+      // onLoad — texture is ready
+      (t) => {
+        t.wrapS = THREE.RepeatWrapping;
+        t.wrapT = THREE.RepeatWrapping;
+        t.repeat.set(repeatX, repeatY);
+        t.colorSpace = THREE.SRGBColorSpace;
+        textureRef.current = t;
+        setLoaded(t);
+      },
+      undefined,
+      // onError — fall back to flat color
+      () => {
+        tex.dispose();
+        setLoaded(null);
+      },
+    );
+
     return () => {
-      textureRef.current?.dispose();
+      tex.dispose();
       textureRef.current = null;
     };
-  }, []);
+  }, [url, repeatX, repeatY]);
 
-  if (texture) {
-    return { map: texture, color: "#ffffff" };
+  if (loaded) {
+    return { map: loaded, color: "#ffffff" };
   }
   return { map: null, color: fallbackColor };
 }
