@@ -50,9 +50,13 @@ export default function DesignPanel() {
         });
         if (res.ok) {
           setValidationResult(await res.json());
+        } else {
+          setValidationResult(null);
         }
-      } catch {
-        // Aborted or backend not running — don't block the UI
+      } catch (e: unknown) {
+        // Only clear on real errors, not aborts
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        setValidationResult(null);
       }
     }, 300);
 
