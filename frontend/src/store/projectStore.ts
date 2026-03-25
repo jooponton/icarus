@@ -196,6 +196,10 @@ interface ProjectState {
   setExportBundle: (b: Partial<{ obj: boolean; pointCloud: boolean; texturedMesh: boolean }>) => void;
   setExportPreviewTab: (t: ExportPreviewTab) => void;
 
+  // Background image
+  backgroundImageUrl: string | null;
+  setBackgroundImageUrl: (url: string | null) => void;
+
   // Chat drawer
   chatDrawerOpen: boolean;
   setChatDrawerOpen: (v: boolean) => void;
@@ -336,6 +340,10 @@ export const useProjectStore = create<ProjectState>((set) => ({
   setExportBundle: (b) =>
     set((s) => ({ exportBundle: { ...s.exportBundle, ...b } })),
   setExportPreviewTab: (t) => set({ exportPreviewTab: t }),
+
+  // Background image
+  backgroundImageUrl: null,
+  setBackgroundImageUrl: (url) => set({ backgroundImageUrl: url }),
 
   // Chat drawer
   chatDrawerOpen: false,

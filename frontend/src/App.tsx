@@ -10,12 +10,14 @@ import FileBrowser from "./components/FileBrowser";
 import ChatDrawer from "./components/ChatDrawer";
 import BuildingScene from "./components/BuildingScene";
 import SplatViewer from "./components/SplatViewer";
+import BackgroundControls from "./components/BackgroundControls";
 import { useProjectStore, type WorkflowStep } from "./store/projectStore";
 
 export default function App() {
   const currentStep = useProjectStore((s) => s.currentStep);
   const viewportMode = useProjectStore((s) => s.viewportMode);
   const splatUrl = useProjectStore((s) => s.splatUrl);
+  const backgroundImageUrl = useProjectStore((s) => s.backgroundImageUrl);
   const setStep = useProjectStore((s) => s.setStep);
   const completeStep = useProjectStore((s) => s.completeStep);
 
@@ -39,13 +41,24 @@ export default function App() {
         <Navbar />
         <div className="flex flex-1 min-h-0">
           <Sidebar />
-          <main className="relative flex-1">
+          <main
+            className="relative flex-1"
+            style={backgroundImageUrl ? {
+              backgroundImage: `url(${backgroundImageUrl})`,
+              backgroundSize: "cover",
+              backgroundPosition: "center",
+            } : undefined}
+          >
             <ViewportTabs />
             <ViewportToolbar />
-            <Canvas camera={{ position: [20, 15, 20], fov: 60 }}>
+            <Canvas
+              camera={{ position: [20, 15, 20], fov: 60 }}
+              gl={{ alpha: true }}
+              style={{ background: "transparent" }}
+            >
               <ambientLight intensity={0.4} />
               <directionalLight position={[10, 20, 10]} intensity={1} />
-              {!splatUrl && (
+              {!splatUrl && !backgroundImageUrl && (
                 <Grid
                   infiniteGrid
                   cellSize={1}
@@ -59,7 +72,7 @@ export default function App() {
               <BuildingScene wireframe={viewportMode === "wireframe"} />
               <OrbitControls makeDefault />
             </Canvas>
-            {currentStep === "upload" && (
+            {currentStep === "upload" && !backgroundImageUrl && (
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-2">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/30">
                   <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
@@ -71,6 +84,7 @@ export default function App() {
                 </p>
               </div>
             )}
+            <BackgroundControls />
           </main>
         </div>
       </div>

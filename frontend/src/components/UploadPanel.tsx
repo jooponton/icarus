@@ -43,6 +43,8 @@ export default function UploadPanel() {
   const location = useProjectStore((s) => s.location);
   const targetType = useProjectStore((s) => s.targetType);
   const setFileBrowserOpen = useProjectStore((s) => s.setFileBrowserOpen);
+  const backgroundImageUrl = useProjectStore((s) => s.backgroundImageUrl);
+  const setBackgroundImageUrl = useProjectStore((s) => s.setBackgroundImageUrl);
   const [dragOver, setDragOver] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -111,6 +113,15 @@ export default function UploadPanel() {
           updateUploadedFile(f.id, { status: "uploaded", progress: 100 });
         }
 
+        // Auto-set first image as viewport background
+        const pid = result.project_id;
+        const firstImage = newFiles.find(
+          (f) => f.type === "image/jpeg" || f.type === "image/png",
+        );
+        if (firstImage && !useProjectStore.getState().backgroundImageUrl) {
+          setBackgroundImageUrl(`/api/uploads/${pid}/${firstImage.name}`);
+        }
+
         // Run quality checks after successful upload
         const totalFiles = useProjectStore.getState().uploadedFiles.length;
         if (totalFiles >= 2) {
@@ -135,6 +146,16 @@ export default function UploadPanel() {
     completeStep("upload");
     setStep("reconstruct");
   }
+
+  function handleSkipToDesign() {
+    completeStep("upload");
+    completeStep("reconstruct");
+    setStep("design");
+  }
+
+  const hasOnlyImages = uploadedFiles.length > 0 && uploadedFiles.every(
+    (f) => f.type.startsWith("image/"),
+  );
 
   const checksReady =
     qualityChecks.gps === true &&
@@ -200,7 +221,7 @@ export default function UploadPanel() {
         </svg>
         <span className="text-[12px]">Drop files or click to browse</span>
         <span className="text-[10px] text-muted-foreground/60">
-          MP4, MOV, DNG, CR2, ARW, NEF
+          JPG, PNG, MP4, MOV, DNG, CR2, ARW, NEF
         </span>
       </button>
 
@@ -289,11 +310,25 @@ export default function UploadPanel() {
         )}
       </div>
 
-      {/* Start reconstruction */}
+      {/* Start reconstruction / Skip to Design */}
       {uploadedFiles.length > 0 && !processing && (
-        <Button onClick={handleStartReconstruction} className="w-full">
-          Start reconstruction
-        </Button>
+        <div className="space-y-2">
+          {!hasOnlyImages && (
+            <Button onClick={handleStartReconstruction} className="w-full">
+              Start reconstruction
+            </Button>
+          )}
+          {hasOnlyImages && (
+            <Button onClick={handleSkipToDesign} className="w-full">
+              Skip to Design
+            </Button>
+          )}
+          {!hasOnlyImages && backgroundImageUrl && (
+            <Button variant="outline" onClick={handleSkipToDesign} className="w-full text-xs">
+              Skip reconstruction (use photo only)
+            </Button>
+          )}
+        </div>
       )}
 
       <Separator />
@@ -347,6 +382,18 @@ export default function UploadPanel() {
                   <StatusBadge variant={f.status === "uploaded" ? "uploaded" : f.status === "error" ? "error" : "queued"}>
                     {f.status === "uploaded" ? "Uploaded" : f.status === "error" ? "Error" : "Queued"}
                   </StatusBadge>
+                )}
+                {(f.type === "image/jpeg" || f.type === "image/png") && (
+                  <button
+                    onClick={() => {
+                      const pid = useProjectStore.getState().projectId;
+                      setBackgroundImageUrl(`/api/uploads/${pid}/${f.name}`);
+                    }}
+                    title="Set as background"
+                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary transition-opacity"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></svg>
+                  </button>
                 )}
                 <button
                   onClick={() => removeUploadedFile(f.id)}

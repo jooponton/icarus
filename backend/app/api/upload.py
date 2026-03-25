@@ -28,6 +28,7 @@ async def upload_footage(
             "name": f.filename,
             "size": len(content),
             "path": str(dest),
+            "content_type": f.content_type,
         })
 
     return {
