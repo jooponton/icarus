@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import FileResponse
 
@@ -14,6 +16,13 @@ from app.services.generation.validator import validate_building_spec
 
 router = APIRouter(tags=["generate"])
 
+_SAFE_ID = re.compile(r"^[a-zA-Z0-9_\-]+$")
+
+
+def _validate_project_id(project_id: str) -> None:
+    if not _SAFE_ID.match(project_id) or len(project_id) > 128:
+        raise HTTPException(400, "Invalid project ID")
+
 
 @router.post("/generate/validate", response_model=ValidationResult)
 async def validate_spec(spec: BuildingSpec):
@@ -24,6 +33,7 @@ async def validate_spec(spec: BuildingSpec):
 async def start_texture_generation(
     project_id: str, spec: BuildingSpec, background_tasks: BackgroundTasks
 ):
+    _validate_project_id(project_id)
     spec_hash = compute_spec_hash(spec)
 
     # Check if already running with a different hash
@@ -46,6 +56,7 @@ async def start_texture_generation(
 
 @router.get("/generate/textures/{project_id}/status")
 async def texture_status(project_id: str):
+    _validate_project_id(project_id)
     job = get_job(project_id)
     if not job:
         raise HTTPException(404, "No texture job found for this project")
@@ -54,6 +65,7 @@ async def texture_status(project_id: str):
 
 @router.get("/generate/textures/{project_id}/{part_id}")
 async def get_texture(project_id: str, part_id: str):
+    _validate_project_id(project_id)
     if part_id not in TEXTURE_PARTS:
         raise HTTPException(400, f"Invalid part: {part_id}. Must be one of {TEXTURE_PARTS}")
 
