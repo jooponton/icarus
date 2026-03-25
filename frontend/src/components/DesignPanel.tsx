@@ -22,6 +22,7 @@ export default function DesignPanel() {
   const validationResult = useProjectStore((s) => s.validationResult);
   const setValidationResult = useProjectStore((s) => s.setValidationResult);
   const textureStatus = useProjectStore((s) => s.textureStatus);
+  const setChatDrawerOpen = useProjectStore((s) => s.setChatDrawerOpen);
 
   // Auto-trigger texture generation when spec changes
   useTextureGeneration();
@@ -93,6 +94,27 @@ export default function DesignPanel() {
         </div>
         <StatusBadge variant="editing">Editing</StatusBadge>
       </div>
+
+      {/* Architect AI prompt — shown when no building spec exists */}
+      {!buildingSpec && (
+        <>
+          <Card className="bg-primary/5 border-primary/20 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+              <span className="text-[12px] font-medium text-foreground">Describe your building</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Tell the AI architect what you want to build — style, size, materials, number of stories. It will generate a 3D building you can place on your site.
+            </p>
+            <Button onClick={() => setChatDrawerOpen(true)} className="w-full">
+              Open Architect AI
+            </Button>
+          </Card>
+          <Separator />
+        </>
+      )}
 
       <Separator />
 
