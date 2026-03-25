@@ -167,7 +167,10 @@ async def generate_textures(project_id: str, spec: BuildingSpec) -> None:
         except Exception as e:
             logger.error("Failed to generate %s texture: %s", part_id, e)
             update_stage(project_id, part_id, error=str(e))
-            raise
+            # Mark remaining stages as error so frontend knows to stop polling
+            for remaining in TEXTURE_PARTS[TEXTURE_PARTS.index(part_id) + 1:]:
+                update_stage(project_id, remaining, error="Skipped due to earlier failure")
+            return
 
     mark_textures_ready(project_id)
     logger.info("All textures ready for %s/%s", project_id, spec_hash)
