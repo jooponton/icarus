@@ -1,4 +1,4 @@
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { BuildingSpec } from "../store/projectStore";
@@ -169,6 +169,39 @@ export default function ProceduralBuilding({
       offset: 0.15,
     };
   }, [width, depth, roofStyle]);
+
+  // Dispose geometries when they change or on unmount
+  useEffect(() => {
+    return () => { floorLines.dispose(); };
+  }, [floorLines]);
+
+  useEffect(() => {
+    return () => {
+      for (const face of Object.values(windows)) {
+        face.glass.dispose();
+        face.frame?.dispose();
+      }
+    };
+  }, [windows]);
+
+  useEffect(() => {
+    return () => {
+      door.door.dispose();
+      door.frame.dispose();
+    };
+  }, [door]);
+
+  useEffect(() => {
+    return () => { corniceGeo?.dispose(); };
+  }, [corniceGeo]);
+
+  useEffect(() => {
+    return () => { pilasterGeo?.dispose(); };
+  }, [pilasterGeo]);
+
+  useEffect(() => {
+    return () => { roof.geo.dispose(); };
+  }, [roof]);
 
   // Wireframe pulse
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
