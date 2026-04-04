@@ -1,6 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db
+from app.models.building_spec import BuildingSpec as BuildingSpecModel
+from app.models.project import Project
 from app.services.ai.architect import chat_with_architect
 
 router = APIRouter(tags=["architect"])
@@ -17,6 +22,33 @@ class ArchitectRequest(BaseModel):
 
 
 @router.post("/architect/chat")
-async def architect_chat(req: ArchitectRequest):
+async def architect_chat(
+    req: ArchitectRequest,
+    db: AsyncSession = Depends(get_db),
+):
     history = [{"role": m.role, "content": m.content} for m in req.messages]
-    return await chat_with_architect(history)
+    result = await chat_with_architect(history)
+
+    # Persist building spec when the architect conversation completes
+    if result.get("spec_complete") and result.get("spec"):
+        spec = result["spec"]
+        # Only save if the project exists
+        proj = await db.execute(
+            select(Project).where(Project.id == req.project_id)
+        )
+        if proj.scalar_one_or_none():
+            db_spec = BuildingSpecModel(
+                project_id=req.project_id,
+                building_type=spec["building_type"],
+                stories=spec["stories"],
+                footprint_width=spec["footprint_width"],
+                footprint_depth=spec["footprint_depth"],
+                roof_style=spec["roof_style"],
+                material=spec["material"],
+                style=spec["style"],
+                notes=spec.get("notes", ""),
+            )
+            db.add(db_spec)
+            await db.commit()
+
+    return result

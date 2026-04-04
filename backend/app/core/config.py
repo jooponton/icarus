@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     ffmpeg_binary: str = "ffmpeg"
     splat_training_iterations: int = 7000
 
+    # Database
+    database_url: str = "sqlite+aiosqlite:///data/icarus.db"
+
     # Texture generation
     texture_dir: Path = Path("data/textures")
     texture_model_id: str = "stabilityai/sdxl-turbo"

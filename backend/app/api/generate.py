@@ -1,9 +1,11 @@
 import re
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.database import get_db
 from app.schemas.project import BuildingSpec
 from app.schemas.validation import ValidationResult
 from app.services.generation.texture_generator import (
@@ -31,13 +33,16 @@ async def validate_spec(spec: BuildingSpec):
 
 @router.post("/generate/textures/{project_id}")
 async def start_texture_generation(
-    project_id: str, spec: BuildingSpec, background_tasks: BackgroundTasks
+    project_id: str,
+    spec: BuildingSpec,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
 ):
     _validate_project_id(project_id)
     spec_hash = compute_spec_hash(spec)
 
     # Check if already running with a different hash
-    existing = get_job(project_id)
+    existing = await get_job(db, project_id)
     if (
         existing
         and existing.spec_hash != spec_hash
@@ -55,21 +60,28 @@ async def start_texture_generation(
 
 
 @router.get("/generate/textures/{project_id}/status")
-async def texture_status(project_id: str):
+async def texture_status(
+    project_id: str,
+    db: AsyncSession = Depends(get_db),
+):
     _validate_project_id(project_id)
-    job = get_job(project_id)
+    job = await get_job(db, project_id)
     if not job:
         raise HTTPException(404, "No texture job found for this project")
     return job
 
 
 @router.get("/generate/textures/{project_id}/{part_id}")
-async def get_texture(project_id: str, part_id: str):
+async def get_texture(
+    project_id: str,
+    part_id: str,
+    db: AsyncSession = Depends(get_db),
+):
     _validate_project_id(project_id)
     if part_id not in TEXTURE_PARTS:
         raise HTTPException(400, f"Invalid part: {part_id}. Must be one of {TEXTURE_PARTS}")
 
-    job = get_job(project_id)
+    job = await get_job(db, project_id)
     if not job:
         raise HTTPException(404, "No texture job found")
 

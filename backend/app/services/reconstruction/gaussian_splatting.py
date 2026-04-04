@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from app.core.config import settings
-from app.services.reconstruction.job_manager import StageStatus, update_stage
+from app.services.reconstruction.job_manager import StageStatus, update_stage_sync as update_stage
 
 logger = logging.getLogger(__name__)
 

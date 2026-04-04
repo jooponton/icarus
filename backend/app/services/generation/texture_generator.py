@@ -14,10 +14,10 @@ from app.core.config import settings
 from app.schemas.project import BuildingSpec
 from app.services.generation.texture_job_manager import (
     StageStatus,
-    create_job,
-    get_job,
-    mark_textures_ready,
-    update_stage,
+    create_job_sync as create_job,
+    get_job_sync as get_job,
+    mark_textures_ready_sync as mark_textures_ready,
+    update_stage_sync as update_stage,
 )
 from app.services.generation.texture_prompts import build_prompts
 

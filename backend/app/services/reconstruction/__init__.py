@@ -6,9 +6,8 @@ from pathlib import Path
 from app.core.config import settings
 from app.services.reconstruction.job_manager import (
     StageStatus,
-    create_job,
-    mark_splat_ready,
-    update_stage,
+    mark_splat_ready_sync,
+    update_stage_sync,
 )
 from app.services.reconstruction.frame_extractor import extract_frames
 from app.services.reconstruction.colmap import run_colmap_pipeline
@@ -56,16 +55,16 @@ async def run_reconstruction_pipeline(project_id: str) -> None:
         # Stage 5: Convert PLY to .splat
         logger.info("[%s] Stage 5: PLY → .splat conversion", project_id)
         splat_path = processed_dir / "splat.splat"
-        update_stage(project_id, "convert", status=StageStatus.RUNNING, progress=0)
+        update_stage_sync(project_id, "convert", status=StageStatus.RUNNING, progress=0)
         convert_ply_to_splat(ply_path, splat_path)
-        update_stage(
+        update_stage_sync(
             project_id, "convert",
             status=StageStatus.COMPLETED,
             progress=100,
             stats={"size": f"{splat_path.stat().st_size / (1024*1024):.0f} MB"},
         )
 
-        mark_splat_ready(project_id)
+        mark_splat_ready_sync(project_id)
         logger.info("[%s] Reconstruction pipeline complete!", project_id)
 
     except Exception as e:
