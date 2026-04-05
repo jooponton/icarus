@@ -1,3 +1,5 @@
+from typing import Literal, Optional
+
 from pydantic import BaseModel
 
 
@@ -15,6 +17,9 @@ class BuildingSpec(BaseModel):
     material: str  # concrete, steel, wood, brick
     style: str  # modern, traditional, industrial, etc.
     notes: str = ""
+    footprint_shape: Literal["rectangular", "l-shaped"] = "rectangular"
+    wing_width: Optional[float] = None  # meters, for L-shaped
+    wing_depth: Optional[float] = None  # meters, for L-shaped
 
 
 class PlacementParams(BaseModel):

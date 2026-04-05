@@ -74,7 +74,28 @@ def validate_building_spec(spec: BuildingSpec) -> ValidationResult:
             scores={"structural_plausibility": 0, "proportion_score": 0, "material_compatibility": 0},
         )
 
-    footprint_area = spec.footprint_width * spec.footprint_depth
+    # Calculate footprint area (L-shaped subtracts the missing corner)
+    if spec.footprint_shape == "l-shaped" and spec.wing_width and spec.wing_depth:
+        if spec.wing_width >= spec.footprint_width:
+            errors.append(ValidationMessage(
+                code="WING_TOO_WIDE",
+                message="L-shape wing width must be less than main footprint width",
+                field="wing_width",
+                severity="error",
+            ))
+        if spec.wing_depth >= spec.footprint_depth:
+            errors.append(ValidationMessage(
+                code="WING_TOO_DEEP",
+                message="L-shape wing depth must be less than main footprint depth",
+                field="wing_depth",
+                severity="error",
+            ))
+        main_area = spec.footprint_width * (spec.footprint_depth - spec.wing_depth)
+        wing_area = spec.wing_width * spec.wing_depth
+        footprint_area = main_area + wing_area
+    else:
+        footprint_area = spec.footprint_width * spec.footprint_depth
+
     aspect_ratio = spec.footprint_width / spec.footprint_depth
     total_height = spec.stories * 3.2
     max_dim = max(spec.footprint_width, spec.footprint_depth)

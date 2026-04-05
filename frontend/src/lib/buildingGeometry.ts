@@ -15,6 +15,7 @@ export function createWindowGrid(
   style: StyleConfig,
   detailMultiplier: number,
   isGroundFloor: boolean,
+  skipGroundFloor: boolean = false,
 ): { glass: THREE.BufferGeometry; frame: THREE.BufferGeometry | null } {
   const winW = style.windowWidth;
   const winH = style.windowHeight;
@@ -31,7 +32,8 @@ export function createWindowGrid(
 
   const hasFrame = style.windowFrameWidth > 0;
 
-  for (let story = 0; story < stories; story++) {
+  const startStory = skipGroundFloor ? 1 : 0;
+  for (let story = startStory; story < stories; story++) {
     const floorY = story * storyHeight;
     const windowCenterY = floorY + storyHeight * 0.55; // slightly above mid-floor
 
@@ -286,6 +288,218 @@ export function createButterflyRoof(
   geo.setIndex(indices);
   geo.computeVertexNormals();
   return geo;
+}
+
+// ─── Parapets ───────────────────────────────────────────────────────────
+
+/**
+ * Create a parapet wall around the roof perimeter (4 thin boxes).
+ */
+export function createParapetGeometry(
+  width: number,
+  depth: number,
+  parapetHeight: number,
+  parapetThickness: number,
+): THREE.BufferGeometry {
+  const geos: THREE.BufferGeometry[] = [];
+  const halfH = parapetHeight / 2;
+  const t = parapetThickness;
+
+  // Front parapet
+  const front = new THREE.BoxGeometry(width + t * 2, parapetHeight, t);
+  front.translate(0, halfH, depth / 2 + t / 2);
+  geos.push(front);
+
+  // Back parapet
+  const back = new THREE.BoxGeometry(width + t * 2, parapetHeight, t);
+  back.translate(0, halfH, -(depth / 2 + t / 2));
+  geos.push(back);
+
+  // Left parapet
+  const left = new THREE.BoxGeometry(t, parapetHeight, depth);
+  left.translate(-(width / 2 + t / 2), halfH, 0);
+  geos.push(left);
+
+  // Right parapet
+  const right = new THREE.BoxGeometry(t, parapetHeight, depth);
+  right.translate(width / 2 + t / 2, halfH, 0);
+  geos.push(right);
+
+  const merged = mergeGeometries(geos);
+  for (const g of geos) g.dispose();
+  return merged;
+}
+
+// ─── Storefronts ────────────────────────────────────────────────────────
+
+/**
+ * Create a commercial storefront for the ground floor of one face.
+ * Returns glass panels and thin vertical mullions.
+ */
+export function createStorefrontGeometry(
+  faceWidth: number,
+  storefrontHeight: number,
+  storyHeight: number,
+): { glass: THREE.BufferGeometry; mullions: THREE.BufferGeometry } {
+  const margin = Math.min(0.8, faceWidth * 0.08);
+  const usableWidth = faceWidth - margin * 2;
+  const panelCount = Math.max(1, Math.floor(usableWidth / 2.0));
+  const panelWidth = usableWidth / panelCount;
+  const mullionWidth = 0.06;
+  const height = Math.min(storefrontHeight, storyHeight * 0.85);
+  const yCenter = height / 2 + 0.1; // slight gap from ground
+
+  const glassGeos: THREE.BufferGeometry[] = [];
+  const mullionGeos: THREE.BufferGeometry[] = [];
+
+  for (let i = 0; i < panelCount; i++) {
+    const x = margin + panelWidth * (i + 0.5) - faceWidth / 2;
+
+    const glass = new THREE.PlaneGeometry(panelWidth - mullionWidth, height);
+    glass.translate(x, yCenter, 0);
+    glassGeos.push(glass);
+
+    // Mullion to the right of each panel (skip last)
+    if (i < panelCount - 1) {
+      const mullion = new THREE.PlaneGeometry(mullionWidth, height);
+      mullion.translate(x + panelWidth / 2, yCenter, 0.001);
+      mullionGeos.push(mullion);
+    }
+  }
+
+  // Frame around the whole storefront
+  const frameH = 0.08;
+  const topFrame = new THREE.PlaneGeometry(usableWidth, frameH);
+  topFrame.translate(0, yCenter + height / 2 + frameH / 2, 0.001);
+  mullionGeos.push(topFrame);
+
+  const glass = mergeGeometries(glassGeos);
+  const mullions = mergeGeometries(mullionGeos);
+  for (const g of glassGeos) g.dispose();
+  for (const g of mullionGeos) g.dispose();
+
+  return { glass, mullions };
+}
+
+// ─── Balconies ──────────────────────────────────────────────────────────
+
+/**
+ * Create balcony geometry for one face of the building.
+ * Each balcony: slab + railing (left, right, front).
+ */
+export function createBalconyGeometry(
+  faceWidth: number,
+  stories: number,
+  storyHeight: number,
+  balconyWidth: number,
+  balconyDepth: number,
+  balconySpacing: number,
+): THREE.BufferGeometry {
+  const geos: THREE.BufferGeometry[] = [];
+
+  const margin = Math.min(1.5, faceWidth * 0.15);
+  const usableWidth = Math.max(balconyWidth, faceWidth - margin * 2);
+  const cols = Math.max(1, Math.floor(usableWidth / balconySpacing));
+  const actualSpacing = usableWidth / cols;
+
+  const slabThickness = 0.12;
+  const railingHeight = 1.0;
+  const railingThickness = 0.05;
+
+  // Start from floor 2 (index 1), skip ground floor
+  for (let story = 1; story < stories; story++) {
+    const floorY = story * storyHeight;
+
+    for (let col = 0; col < cols; col++) {
+      const cx = margin + actualSpacing * (col + 0.5) - faceWidth / 2;
+
+      // Slab
+      const slab = new THREE.BoxGeometry(balconyWidth, slabThickness, balconyDepth);
+      slab.translate(cx, floorY, balconyDepth / 2);
+      geos.push(slab);
+
+      // Front railing
+      const frontRail = new THREE.BoxGeometry(balconyWidth, railingHeight, railingThickness);
+      frontRail.translate(cx, floorY + railingHeight / 2, balconyDepth);
+      geos.push(frontRail);
+
+      // Left railing
+      const leftRail = new THREE.BoxGeometry(railingThickness, railingHeight, balconyDepth);
+      leftRail.translate(cx - balconyWidth / 2, floorY + railingHeight / 2, balconyDepth / 2);
+      geos.push(leftRail);
+
+      // Right railing
+      const rightRail = new THREE.BoxGeometry(railingThickness, railingHeight, balconyDepth);
+      rightRail.translate(cx + balconyWidth / 2, floorY + railingHeight / 2, balconyDepth / 2);
+      geos.push(rightRail);
+    }
+  }
+
+  if (geos.length === 0) {
+    // 1-story building — no balconies
+    const empty = new THREE.BufferGeometry();
+    empty.setAttribute("position", new THREE.BufferAttribute(new Float32Array(3), 3));
+    return empty;
+  }
+
+  const merged = mergeGeometries(geos);
+  for (const g of geos) g.dispose();
+  return merged;
+}
+
+// ─── Setback Body ───────────────────────────────────────────────────────
+
+export interface SetbackSection {
+  fromFloor: number;
+  toFloor: number;
+  width: number;
+  depth: number;
+  yOffset: number;
+}
+
+/**
+ * Compute building sections for a setback. Returns section metadata and
+ * box geometries for each section.
+ */
+export function createSetbackSections(
+  width: number,
+  depth: number,
+  storyHeight: number,
+  stories: number,
+  setbackFloor: number,
+  setbackAmount: number,
+): { sections: SetbackSection[]; geometries: THREE.BufferGeometry[] } {
+  const clampedFloor = Math.max(1, Math.min(stories - 1, setbackFloor));
+
+  const lowerHeight = clampedFloor * storyHeight;
+  const upperHeight = (stories - clampedFloor) * storyHeight;
+  const upperWidth = Math.max(2, width - setbackAmount * 2);
+  const upperDepth = Math.max(2, depth - setbackAmount * 2);
+
+  const sections: SetbackSection[] = [
+    {
+      fromFloor: 0,
+      toFloor: clampedFloor,
+      width,
+      depth,
+      yOffset: 0,
+    },
+    {
+      fromFloor: clampedFloor,
+      toFloor: stories,
+      width: upperWidth,
+      depth: upperDepth,
+      yOffset: lowerHeight,
+    },
+  ];
+
+  const lowerGeo = new THREE.BoxGeometry(width, lowerHeight, depth);
+  lowerGeo.translate(0, lowerHeight / 2, 0);
+
+  const upperGeo = new THREE.BoxGeometry(upperWidth, upperHeight, upperDepth);
+  upperGeo.translate(0, lowerHeight + upperHeight / 2, 0);
+
+  return { sections, geometries: [lowerGeo, upperGeo] };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

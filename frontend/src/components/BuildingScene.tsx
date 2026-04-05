@@ -2,7 +2,7 @@ import { useRef, useEffect } from "react";
 import { TransformControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useProjectStore } from "../store/projectStore";
-import ProceduralBuilding from "./ProceduralBuilding";
+import CompoundBuilding from "./CompoundBuilding";
 
 export default function BuildingScene({ wireframe = false }: { wireframe?: boolean }) {
   const buildingSpec = useProjectStore((s) => s.buildingSpec);
@@ -57,7 +57,7 @@ export default function BuildingScene({ wireframe = false }: { wireframe?: boole
         position={placement.position}
         rotation={placement.rotation}
       >
-        <ProceduralBuilding spec={buildingSpec} wireframe={wireframe} detailLevel={meshDetailLevel} textureUrls={textureUrls} />
+        <CompoundBuilding spec={buildingSpec} wireframe={wireframe} detailLevel={meshDetailLevel} textureUrls={textureUrls} />
       </group>
 
       {isPlaceStep && groupRef.current && (

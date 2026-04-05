@@ -47,6 +47,9 @@ async def architect_chat(
                 material=spec["material"],
                 style=spec["style"],
                 notes=spec.get("notes", ""),
+                footprint_shape=spec.get("footprint_shape", "rectangular"),
+                wing_width=spec.get("wing_width"),
+                wing_depth=spec.get("wing_depth"),
             )
             db.add(db_spec)
             await db.commit()

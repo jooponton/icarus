@@ -13,9 +13,8 @@ export default function ArchitectChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const projectId = useProjectStore((s) => s.projectId);
   const setBuildingSpec = useProjectStore((s) => s.setBuildingSpec);
-  const completeStep = useProjectStore((s) => s.completeStep);
-  const setStep = useProjectStore((s) => s.setStep);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -29,7 +28,7 @@ export default function ArchitectChat() {
       const res = await fetch("/api/architect/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: "current", messages: msgs }),
+        body: JSON.stringify({ project_id: projectId, messages: msgs }),
         signal,
       });
       const data = await res.json();
@@ -41,8 +40,6 @@ export default function ArchitectChat() {
 
       if (data.spec_complete && data.spec) {
         setBuildingSpec(data.spec);
-        completeStep("design");
-        setStep("place");
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -56,9 +53,10 @@ export default function ArchitectChat() {
     } finally {
       setLoading(false);
     }
-  }, [setBuildingSpec, completeStep, setStep]);
+  }, [projectId, setBuildingSpec]);
 
   useEffect(() => {
+    if (!projectId) return;
     const controller = new AbortController();
     abortRef.current = controller;
     sendMessages(
@@ -66,7 +64,7 @@ export default function ArchitectChat() {
       controller.signal,
     );
     return () => controller.abort();
-  }, [sendMessages]);
+  }, [projectId, sendMessages]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

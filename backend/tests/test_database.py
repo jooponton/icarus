@@ -238,6 +238,45 @@ class TestProjectsAPI:
         data = resp.json()
         assert data["project_id"] == pid
         assert data["status"] == "pending"
+        assert data["spec"] is None
+
+    @pytest.mark.asyncio
+    async def test_get_project_with_spec(self, db_session, client):
+        # Create project
+        resp = await client.post(
+            "/api/projects", json={"name": "Spec Test"}
+        )
+        pid = resp.json()["project_id"]
+
+        # Add a building spec directly
+        from app.models.building_spec import BuildingSpec as BuildingSpecModel
+
+        spec = BuildingSpecModel(
+            project_id=pid,
+            building_type="residential",
+            stories=2,
+            footprint_width=12.0,
+            footprint_depth=10.0,
+            roof_style="gable",
+            material="wood",
+            style="modern",
+            notes="test notes",
+        )
+        db_session.add(spec)
+        await db_session.commit()
+
+        resp = await client.get(f"/api/projects/{pid}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["has_spec"] is True
+        assert data["spec"]["building_type"] == "residential"
+        assert data["spec"]["stories"] == 2
+        assert data["spec"]["footprint_width"] == 12.0
+        assert data["spec"]["footprint_depth"] == 10.0
+        assert data["spec"]["roof_style"] == "gable"
+        assert data["spec"]["material"] == "wood"
+        assert data["spec"]["style"] == "modern"
+        assert data["spec"]["notes"] == "test notes"
 
     @pytest.mark.asyncio
     async def test_get_nonexistent_project(self, client):

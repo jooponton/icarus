@@ -12,6 +12,7 @@ import BuildingScene from "./components/BuildingScene";
 import SplatViewer from "./components/SplatViewer";
 import BackgroundControls from "./components/BackgroundControls";
 import { useProjectStore, type WorkflowStep } from "./store/projectStore";
+import { useProjectRestore } from "./hooks/useProjectRestore";
 
 export default function App() {
   const currentStep = useProjectStore((s) => s.currentStep);
@@ -20,6 +21,9 @@ export default function App() {
   const backgroundImageUrl = useProjectStore((s) => s.backgroundImageUrl);
   const setStep = useProjectStore((s) => s.setStep);
   const completeStep = useProjectStore((s) => s.completeStep);
+
+  // Restore project state from localStorage + backend on refresh
+  useProjectRestore();
 
   // Dev: ?step=reconstruct to jump to any step
   useEffect(() => {

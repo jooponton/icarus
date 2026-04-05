@@ -11,6 +11,10 @@ import {
   createPilasterGeometry,
   createMansardRoof,
   createButterflyRoof,
+  createParapetGeometry,
+  createStorefrontGeometry,
+  createBalconyGeometry,
+  createSetbackSections,
 } from "../lib/buildingGeometry";
 
 const MATERIAL_COLORS: Record<string, string> = {
@@ -32,8 +36,10 @@ const ROOF_COLORS: Record<string, string> = {
 };
 
 const GLASS_COLOR = "#4488aa";
+const STOREFRONT_GLASS = "#5599bb";
 const FRAME_COLOR = "#333333";
 const DOOR_COLOR = "#3a2a1a";
+const BALCONY_COLOR = "#777777";
 
 interface Props {
   spec: BuildingSpec;
@@ -73,26 +79,59 @@ export default function ProceduralBuilding({
   const doorTex = useGeneratedTexture(textureUrls?.door ?? null, DOOR_COLOR, 1, 1);
   const trimTex = useGeneratedTexture(textureUrls?.trim ?? null, FRAME_COLOR, 1, 1);
 
+  // Setback sections
+  const hasSetback = styleConfig.setbackAfterFloor !== null && stories > (styleConfig.setbackAfterFloor ?? 0);
+  const setback = useMemo(() => {
+    if (!hasSetback || styleConfig.setbackAfterFloor === null) return null;
+    return createSetbackSections(
+      width, depth, storyHeight, stories,
+      styleConfig.setbackAfterFloor, styleConfig.setbackAmount,
+    );
+  }, [hasSetback, width, depth, storyHeight, stories, styleConfig.setbackAfterFloor, styleConfig.setbackAmount]);
+
+  // For setback buildings, use the top section dimensions for roof placement
+  const roofWidth = setback ? setback.sections[1]!.width : width;
+  const roofDepth = setback ? setback.sections[1]!.depth : depth;
+
   // Floor lines
   const floorLines = useMemo(() => {
     const points: THREE.Vector3[] = [];
-    for (let i = 1; i < stories; i++) {
-      const y = i * storyHeight;
-      points.push(new THREE.Vector3(-width / 2, y, depth / 2));
-      points.push(new THREE.Vector3(width / 2, y, depth / 2));
-      points.push(new THREE.Vector3(width / 2, y, depth / 2));
-      points.push(new THREE.Vector3(width / 2, y, -depth / 2));
-      points.push(new THREE.Vector3(width / 2, y, -depth / 2));
-      points.push(new THREE.Vector3(-width / 2, y, -depth / 2));
-      points.push(new THREE.Vector3(-width / 2, y, -depth / 2));
-      points.push(new THREE.Vector3(-width / 2, y, depth / 2));
+    if (setback) {
+      for (const section of setback.sections) {
+        const sw = section.width;
+        const sd = section.depth;
+        for (let i = section.fromFloor + 1; i < section.toFloor; i++) {
+          const y = i * storyHeight;
+          points.push(new THREE.Vector3(-sw / 2, y, sd / 2));
+          points.push(new THREE.Vector3(sw / 2, y, sd / 2));
+          points.push(new THREE.Vector3(sw / 2, y, sd / 2));
+          points.push(new THREE.Vector3(sw / 2, y, -sd / 2));
+          points.push(new THREE.Vector3(sw / 2, y, -sd / 2));
+          points.push(new THREE.Vector3(-sw / 2, y, -sd / 2));
+          points.push(new THREE.Vector3(-sw / 2, y, -sd / 2));
+          points.push(new THREE.Vector3(-sw / 2, y, sd / 2));
+        }
+      }
+    } else {
+      for (let i = 1; i < stories; i++) {
+        const y = i * storyHeight;
+        points.push(new THREE.Vector3(-width / 2, y, depth / 2));
+        points.push(new THREE.Vector3(width / 2, y, depth / 2));
+        points.push(new THREE.Vector3(width / 2, y, depth / 2));
+        points.push(new THREE.Vector3(width / 2, y, -depth / 2));
+        points.push(new THREE.Vector3(width / 2, y, -depth / 2));
+        points.push(new THREE.Vector3(-width / 2, y, -depth / 2));
+        points.push(new THREE.Vector3(-width / 2, y, -depth / 2));
+        points.push(new THREE.Vector3(-width / 2, y, depth / 2));
+      }
     }
     return new THREE.BufferGeometry().setFromPoints(points);
-  }, [width, depth, stories, storyHeight]);
+  }, [width, depth, stories, storyHeight, setback]);
 
-  // Windows — one grid per face
+  // Windows — one grid per face (skip ground floor on front if storefront)
   const windows = useMemo(() => {
-    const front = createWindowGrid(width, stories, storyHeight, styleConfig, detailMult, true);
+    const skipFrontGround = styleConfig.hasStorefront;
+    const front = createWindowGrid(width, stories, storyHeight, styleConfig, detailMult, true, skipFrontGround);
     const back = createWindowGrid(width, stories, storyHeight, styleConfig, detailMult, false);
     const left = createWindowGrid(depth, stories, storyHeight, styleConfig, detailMult, false);
     const right = createWindowGrid(depth, stories, storyHeight, styleConfig, detailMult, false);
@@ -122,6 +161,30 @@ export default function ProceduralBuilding({
     );
   }, [totalHeight, width, depth, styleConfig]);
 
+  // Parapets
+  const parapetGeo = useMemo(() => {
+    if (!styleConfig.hasParapet) return null;
+    return createParapetGeometry(
+      roofWidth, roofDepth,
+      styleConfig.parapetHeight, styleConfig.parapetThickness,
+    );
+  }, [roofWidth, roofDepth, styleConfig]);
+
+  // Storefronts
+  const storefront = useMemo(() => {
+    if (!styleConfig.hasStorefront) return null;
+    return createStorefrontGeometry(width, styleConfig.storefrontHeight, storyHeight);
+  }, [width, storyHeight, styleConfig]);
+
+  // Balconies (front face)
+  const balconyGeo = useMemo(() => {
+    if (!styleConfig.hasBalconies || stories < 2) return null;
+    return createBalconyGeometry(
+      width, stories, storyHeight,
+      styleConfig.balconyWidth, styleConfig.balconyDepth, styleConfig.balconySpacing,
+    );
+  }, [width, stories, storyHeight, styleConfig]);
+
   // Roof
   const roof = useMemo(() => {
     if (roofStyle === "gabled" || roofStyle === "hip") {
@@ -129,46 +192,46 @@ export default function ProceduralBuilding({
       const peak = 3;
       if (roofStyle === "gabled") {
         const shape = new THREE.Shape();
-        const hw = width / 2 + overhang;
+        const hw = roofWidth / 2 + overhang;
         shape.moveTo(-hw, 0);
         shape.lineTo(0, peak);
         shape.lineTo(hw, 0);
         shape.lineTo(-hw, 0);
         const geo = new THREE.ExtrudeGeometry(shape, {
-          depth: depth + overhang * 2,
+          depth: roofDepth + overhang * 2,
           bevelEnabled: false,
         });
         geo.rotateX(-Math.PI / 2);
-        geo.translate(0, 0, depth / 2 + overhang);
+        geo.translate(0, 0, roofDepth / 2 + overhang);
         return { geo, offset: 0 };
       }
       // Hip roof
       const geo = new THREE.ConeGeometry(
-        Math.max(width, depth) / 2 + overhang, peak, 4,
+        Math.max(roofWidth, roofDepth) / 2 + overhang, peak, 4,
       );
       geo.rotateY(Math.PI / 4);
       return { geo, offset: peak / 2 };
     }
     if (roofStyle === "shed") {
-      const geo = new THREE.BoxGeometry(width + 1, 0.3, depth + 1);
+      const geo = new THREE.BoxGeometry(roofWidth + 1, 0.3, roofDepth + 1);
       geo.translate(0, 0.8, 0);
       geo.applyMatrix4(new THREE.Matrix4().makeRotationX(-0.15));
       return { geo, offset: 0 };
     }
     if (roofStyle === "mansard") {
-      const geo = createMansardRoof(width, depth);
+      const geo = createMansardRoof(roofWidth, roofDepth);
       return { geo, offset: 0 };
     }
     if (roofStyle === "butterfly") {
-      const geo = createButterflyRoof(width, depth);
+      const geo = createButterflyRoof(roofWidth, roofDepth);
       return { geo, offset: 0 };
     }
     // Flat roof
     return {
-      geo: new THREE.BoxGeometry(width + 0.4, 0.3, depth + 0.4),
+      geo: new THREE.BoxGeometry(roofWidth + 0.4, 0.3, roofDepth + 0.4),
       offset: 0.15,
     };
-  }, [width, depth, roofStyle]);
+  }, [roofWidth, roofDepth, roofStyle]);
 
   // Dispose geometries when they change or on unmount
   useEffect(() => {
@@ -200,8 +263,31 @@ export default function ProceduralBuilding({
   }, [pilasterGeo]);
 
   useEffect(() => {
+    return () => { parapetGeo?.dispose(); };
+  }, [parapetGeo]);
+
+  useEffect(() => {
+    return () => {
+      storefront?.glass.dispose();
+      storefront?.mullions.dispose();
+    };
+  }, [storefront]);
+
+  useEffect(() => {
+    return () => { balconyGeo?.dispose(); };
+  }, [balconyGeo]);
+
+  useEffect(() => {
     return () => { roof.geo.dispose(); };
   }, [roof]);
+
+  useEffect(() => {
+    return () => {
+      if (setback) {
+        for (const g of setback.geometries) g.dispose();
+      }
+    };
+  }, [setback]);
 
   // Wireframe pulse
   const matRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -214,17 +300,34 @@ export default function ProceduralBuilding({
   return (
     <group ref={groupRef}>
       {/* Main body */}
-      <mesh position={[0, totalHeight / 2, 0]}>
-        <boxGeometry args={[width, totalHeight, depth]} />
-        <meshStandardMaterial
-          ref={matRef}
-          color={wallTex.color}
-          map={wallTex.map}
-          wireframe={wireframe}
-          transparent={wireframe}
-          opacity={wireframe ? 0.5 : 1}
-        />
-      </mesh>
+      {setback ? (
+        // Setback: render multiple box sections
+        setback.geometries.map((geo, i) => (
+          <mesh key={i}>
+            <primitive object={geo} attach="geometry" />
+            <meshStandardMaterial
+              ref={i === 0 ? matRef : undefined}
+              color={wallTex.color}
+              map={wallTex.map}
+              wireframe={wireframe}
+              transparent={wireframe}
+              opacity={wireframe ? 0.5 : 1}
+            />
+          </mesh>
+        ))
+      ) : (
+        <mesh position={[0, totalHeight / 2, 0]}>
+          <boxGeometry args={[width, totalHeight, depth]} />
+          <meshStandardMaterial
+            ref={matRef}
+            color={wallTex.color}
+            map={wallTex.map}
+            wireframe={wireframe}
+            transparent={wireframe}
+            opacity={wireframe ? 0.5 : 1}
+          />
+        </mesh>
+      )}
 
       {/* ── Windows ── */}
       {!wireframe && (
@@ -277,15 +380,33 @@ export default function ProceduralBuilding({
             </mesh>
           )}
 
+          {/* ── Storefront (front face ground floor) ── */}
+          {storefront && (
+            <>
+              <mesh position={[0, 0, depth / 2 + 0.004]}>
+                <primitive object={storefront.glass} attach="geometry" />
+                <meshStandardMaterial color={STOREFRONT_GLASS} metalness={0.7} roughness={0.1} transparent opacity={0.85} />
+              </mesh>
+              <mesh position={[0, 0, depth / 2 + 0.003]}>
+                <primitive object={storefront.mullions} attach="geometry" />
+                <meshStandardMaterial color={trimTex.color} map={trimTex.map} />
+              </mesh>
+            </>
+          )}
+
           {/* ── Door (front face) ── */}
-          <mesh position={[0, 0, depth / 2 + 0.003]}>
-            <primitive object={door.door} attach="geometry" />
-            <meshStandardMaterial color={doorTex.color} map={doorTex.map} />
-          </mesh>
-          <mesh position={[0, 0, depth / 2 + 0.0025]}>
-            <primitive object={door.frame} attach="geometry" />
-            <meshStandardMaterial color={trimTex.color} map={trimTex.map} />
-          </mesh>
+          {!styleConfig.hasStorefront && (
+            <>
+              <mesh position={[0, 0, depth / 2 + 0.003]}>
+                <primitive object={door.door} attach="geometry" />
+                <meshStandardMaterial color={doorTex.color} map={doorTex.map} />
+              </mesh>
+              <mesh position={[0, 0, depth / 2 + 0.0025]}>
+                <primitive object={door.frame} attach="geometry" />
+                <meshStandardMaterial color={trimTex.color} map={trimTex.map} />
+              </mesh>
+            </>
+          )}
         </>
       )}
 
@@ -302,6 +423,22 @@ export default function ProceduralBuilding({
         <mesh>
           <primitive object={pilasterGeo} attach="geometry" />
           <meshStandardMaterial color={wallTex.color} map={wallTex.map} />
+        </mesh>
+      )}
+
+      {/* ── Parapets ── */}
+      {!wireframe && parapetGeo && (
+        <mesh position={[0, totalHeight, 0]}>
+          <primitive object={parapetGeo} attach="geometry" />
+          <meshStandardMaterial color={wallTex.color} map={wallTex.map} />
+        </mesh>
+      )}
+
+      {/* ── Balconies (front face) ── */}
+      {!wireframe && balconyGeo && (
+        <mesh position={[0, 0, depth / 2]}>
+          <primitive object={balconyGeo} attach="geometry" />
+          <meshStandardMaterial color={BALCONY_COLOR} roughness={0.7} />
         </mesh>
       )}
 

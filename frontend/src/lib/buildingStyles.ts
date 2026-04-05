@@ -22,10 +22,45 @@ export interface StyleConfig {
   doorWidth: number;
   doorHeight: number;
   doubleDoor: boolean;
+
+  // Parapets
+  hasParapet: boolean;
+  parapetHeight: number;
+  parapetThickness: number;
+
+  // Storefronts
+  hasStorefront: boolean;
+  storefrontHeight: number;
+
+  // Balconies
+  hasBalconies: boolean;
+  balconyWidth: number;
+  balconyDepth: number;
+  balconySpacing: number;
+
+  // Setbacks
+  setbackAfterFloor: number | null;
+  setbackAmount: number;
 }
+
+// New feature defaults — spread into every preset
+const FEATURE_DEFAULTS = {
+  hasParapet: false,
+  parapetHeight: 0.9,
+  parapetThickness: 0.2,
+  hasStorefront: false,
+  storefrontHeight: 2.8,
+  hasBalconies: false,
+  balconyWidth: 1.8,
+  balconyDepth: 1.2,
+  balconySpacing: 3.0,
+  setbackAfterFloor: null as number | null,
+  setbackAmount: 1.5,
+};
 
 const STYLE_PRESETS: Record<string, StyleConfig> = {
   modern: {
+    ...FEATURE_DEFAULTS,
     windowWidth: 1.6,
     windowHeight: 2.0,
     windowSpacingH: 2.4,
@@ -44,6 +79,7 @@ const STYLE_PRESETS: Record<string, StyleConfig> = {
     doubleDoor: false,
   },
   traditional: {
+    ...FEATURE_DEFAULTS,
     windowWidth: 1.0,
     windowHeight: 1.6,
     windowSpacingH: 2.2,
@@ -60,8 +96,12 @@ const STYLE_PRESETS: Record<string, StyleConfig> = {
     doorWidth: 1.2,
     doorHeight: 2.5,
     doubleDoor: false,
+    hasBalconies: true,
+    balconyWidth: 1.6,
+    balconyDepth: 1.0,
   },
   industrial: {
+    ...FEATURE_DEFAULTS,
     windowWidth: 2.0,
     windowHeight: 1.8,
     windowSpacingH: 3.0,
@@ -78,8 +118,10 @@ const STYLE_PRESETS: Record<string, StyleConfig> = {
     doorWidth: 2.0,
     doorHeight: 3.0,
     doubleDoor: true,
+    hasParapet: true,
   },
   minimalist: {
+    ...FEATURE_DEFAULTS,
     windowWidth: 1.8,
     windowHeight: 2.2,
     windowSpacingH: 3.0,
@@ -98,6 +140,7 @@ const STYLE_PRESETS: Record<string, StyleConfig> = {
     doubleDoor: false,
   },
   brutalist: {
+    ...FEATURE_DEFAULTS,
     windowWidth: 0.8,
     windowHeight: 1.0,
     windowSpacingH: 2.0,
@@ -114,8 +157,11 @@ const STYLE_PRESETS: Record<string, StyleConfig> = {
     doorWidth: 1.6,
     doorHeight: 2.8,
     doubleDoor: true,
+    hasParapet: true,
+    parapetHeight: 1.2,
   },
   colonial: {
+    ...FEATURE_DEFAULTS,
     windowWidth: 0.9,
     windowHeight: 1.8,
     windowSpacingH: 2.0,
@@ -132,8 +178,12 @@ const STYLE_PRESETS: Record<string, StyleConfig> = {
     doorWidth: 1.2,
     doorHeight: 2.5,
     doubleDoor: false,
+    hasBalconies: true,
+    balconyWidth: 1.4,
+    balconyDepth: 0.9,
   },
   "art deco": {
+    ...FEATURE_DEFAULTS,
     windowWidth: 1.2,
     windowHeight: 2.0,
     windowSpacingH: 2.0,
@@ -150,8 +200,12 @@ const STYLE_PRESETS: Record<string, StyleConfig> = {
     doorWidth: 1.6,
     doorHeight: 2.8,
     doubleDoor: true,
+    hasParapet: true,
+    setbackAfterFloor: 6,
+    setbackAmount: 2.0,
   },
   mediterranean: {
+    ...FEATURE_DEFAULTS,
     windowWidth: 0.9,
     windowHeight: 1.4,
     windowSpacingH: 2.2,
@@ -168,8 +222,13 @@ const STYLE_PRESETS: Record<string, StyleConfig> = {
     doorWidth: 1.3,
     doorHeight: 2.4,
     doubleDoor: false,
+    hasBalconies: true,
+    balconyWidth: 1.6,
+    balconyDepth: 1.1,
+    balconySpacing: 2.8,
   },
   contemporary: {
+    ...FEATURE_DEFAULTS,
     windowWidth: 1.5,
     windowHeight: 2.0,
     windowSpacingH: 2.4,
@@ -186,8 +245,12 @@ const STYLE_PRESETS: Record<string, StyleConfig> = {
     doorWidth: 1.4,
     doorHeight: 2.6,
     doubleDoor: false,
+    hasBalconies: true,
+    balconyWidth: 2.0,
+    balconyDepth: 1.3,
   },
   organic: {
+    ...FEATURE_DEFAULTS,
     windowWidth: 1.2,
     windowHeight: 1.4,
     windowSpacingH: 2.6,
@@ -223,6 +286,12 @@ export function getStyleConfig(style: string, buildingType: string): StyleConfig
       config.doubleDoor = true;
       config.doorWidth = Math.max(config.doorWidth, 1.8);
       config.glassRatio = Math.max(config.glassRatio, 0.3);
+      config.hasParapet = true;
+      config.hasStorefront = true;
+      break;
+    case "mixed-use":
+      config.hasStorefront = true;
+      config.hasBalconies = true;
       break;
     case "institutional":
       config.hasPilasters = true;
@@ -230,6 +299,7 @@ export function getStyleConfig(style: string, buildingType: string): StyleConfig
       config.pilasterDepth = config.pilasterDepth || 0.12;
       config.doubleDoor = true;
       config.doorWidth = Math.max(config.doorWidth, 1.8);
+      config.hasParapet = true;
       break;
     case "industrial":
       config.windowHeight = Math.max(config.windowHeight, 1.8);
@@ -237,6 +307,7 @@ export function getStyleConfig(style: string, buildingType: string): StyleConfig
       config.doorWidth = Math.max(config.doorWidth, 2.0);
       config.doorHeight = Math.max(config.doorHeight, 3.0);
       config.doubleDoor = true;
+      config.hasParapet = true;
       break;
     case "residential":
       config.doorWidth = Math.min(config.doorWidth, 1.4);

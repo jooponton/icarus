@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useProjectStore } from "../store/projectStore";
 
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = "/api";
 const POLL_INTERVAL = 2000;
 const DEBOUNCE_MS = 1000;
 

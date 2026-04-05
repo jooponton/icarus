@@ -22,6 +22,9 @@ class BuildingSpec(Base):
     material: Mapped[str] = mapped_column(String(50), nullable=False)
     style: Mapped[str] = mapped_column(String(100), nullable=False)
     notes: Mapped[Optional[str]] = mapped_column(Text, default="")
+    footprint_shape: Mapped[str] = mapped_column(String(20), default="rectangular")
+    wing_width: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    wing_depth: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

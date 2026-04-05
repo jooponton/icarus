@@ -56,6 +56,19 @@ async def get_project(project_id: str, db: AsyncSession = Depends(get_db)):
         "created_at": project.created_at.isoformat() if project.created_at else None,
         "status": "splat_ready" if (recon and recon.splat_ready) else "pending",
         "has_spec": spec is not None,
+        "spec": {
+            "building_type": spec.building_type,
+            "stories": spec.stories,
+            "footprint_width": spec.footprint_width,
+            "footprint_depth": spec.footprint_depth,
+            "roof_style": spec.roof_style,
+            "material": spec.material,
+            "style": spec.style,
+            "notes": spec.notes or "",
+            "footprint_shape": spec.footprint_shape,
+            "wing_width": spec.wing_width,
+            "wing_depth": spec.wing_depth,
+        } if spec else None,
         "has_textures": tex.textures_ready if tex else False,
     }
 

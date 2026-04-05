@@ -27,6 +27,9 @@ export interface BuildingSpec {
   material: string;
   style: string;
   notes: string;
+  footprint_shape?: "rectangular" | "l-shaped";
+  wing_width?: number;
+  wing_depth?: number;
 }
 
 export interface UploadedFile {

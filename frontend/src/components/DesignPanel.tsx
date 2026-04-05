@@ -43,7 +43,7 @@ export default function DesignPanel() {
       const controller = new AbortController();
       abortRef.current = controller;
       try {
-        const res = await fetch("http://localhost:8000/api/generate/validate", {
+        const res = await fetch("/api/generate/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildingSpec),
