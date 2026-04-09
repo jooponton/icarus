@@ -126,7 +126,7 @@ def validate_building_spec(spec: BuildingSpec) -> ValidationResult:
     if rules and footprint_area < rules["min_footprint"]:
         errors.append(ValidationMessage(
             code="FOOTPRINT_TOO_SMALL",
-            message=f"{bt.title()} buildings need at least {rules['min_footprint']}m² footprint (got {footprint_area:.0f}m²)",
+            message=f"{bt.title()} buildings need at least {rules['min_footprint']}m2 footprint (got {footprint_area:.0f}m2)",
             field="footprint_width",
             severity="error",
         ))
@@ -136,7 +136,7 @@ def validate_building_spec(spec: BuildingSpec) -> ValidationResult:
     if aspect_ratio < 0.25 or aspect_ratio > 4.0:
         warnings.append(ValidationMessage(
             code="EXTREME_ASPECT_RATIO",
-            message=f"Footprint aspect ratio {aspect_ratio:.1f} is unusual — building may look unrealistic",
+            message=f"Footprint aspect ratio {aspect_ratio:.1f} is unusual, building may look unrealistic",
             field="footprint_width",
             severity="warning",
         ))
@@ -152,14 +152,14 @@ def validate_building_spec(spec: BuildingSpec) -> ValidationResult:
     if height_ratio < 0.5:
         warnings.append(ValidationMessage(
             code="BUILDING_TOO_SQUAT",
-            message="Building proportions are very squat — may look unrealistic",
+            message="Building proportions are very squat, may look unrealistic",
             field="stories",
             severity="warning",
         ))
     elif height_ratio > 6.0:
         warnings.append(ValidationMessage(
             code="BUILDING_TOO_THIN",
-            message="Building proportions are very slender — structural concerns in real construction",
+            message="Building proportions are very slender, structural concerns in real construction",
             field="stories",
             severity="warning",
         ))
@@ -173,7 +173,7 @@ def validate_building_spec(spec: BuildingSpec) -> ValidationResult:
         structural_score -= len(warnings) * 10
     structural_score = max(0, min(100, structural_score))
 
-    # Proportion score — how close to ideal 1.5-3.0 height ratio
+    # Proportion score: how close to ideal 1.5-3.0 height ratio
     if 1.0 <= height_ratio <= 4.0:
         proportion_score = 95.0
     elif 0.5 <= height_ratio <= 6.0:

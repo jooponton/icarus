@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +9,8 @@ from app.core.database import get_db
 from app.models.building_spec import BuildingSpec as BuildingSpecModel
 from app.models.project import Project
 from app.services.ai.architect import chat_with_architect
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["architect"])
 
@@ -27,7 +31,11 @@ async def architect_chat(
     db: AsyncSession = Depends(get_db),
 ):
     history = [{"role": m.role, "content": m.content} for m in req.messages]
-    result = await chat_with_architect(history)
+    try:
+        result = await chat_with_architect(history)
+    except Exception as exc:
+        logger.exception("Architect chat failed")
+        raise HTTPException(503, f"Architect AI unavailable: {exc}") from exc
 
     # Persist building spec when the architect conversation completes
     if result.get("spec_complete") and result.get("spec"):

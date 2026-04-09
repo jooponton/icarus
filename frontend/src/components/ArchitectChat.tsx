@@ -55,8 +55,11 @@ export default function ArchitectChat() {
     }
   }, [projectId, setBuildingSpec]);
 
+  const buildingSpec = useProjectStore((s) => s.buildingSpec);
+
   useEffect(() => {
-    if (!projectId) return;
+    // Don't auto-greet if project already has a spec (e.g. restored from DB)
+    if (!projectId || buildingSpec) return;
     const controller = new AbortController();
     abortRef.current = controller;
     sendMessages(
@@ -64,6 +67,8 @@ export default function ArchitectChat() {
       controller.signal,
     );
     return () => controller.abort();
+    // buildingSpec intentionally excluded — only check on mount/projectId change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, sendMessages]);
 
   function handleSubmit(e: React.FormEvent) {
