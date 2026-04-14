@@ -1,9 +1,9 @@
 import { useRef, useMemo, useEffect } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { BuildingSpec } from "../store/projectStore";
+import type { BuildingSpec, PbrTextureUrls } from "../store/projectStore";
 import { getStyleConfig, getDetailLevelMultiplier } from "../lib/buildingStyles";
-import { useGeneratedTexture } from "../hooks/useGeneratedTexture";
+import { usePbrMaterial } from "../hooks/usePbrMaterial";
 import {
   createWindowGrid,
   createDoorGeometry,
@@ -45,7 +45,7 @@ interface Props {
   spec: BuildingSpec;
   wireframe?: boolean;
   detailLevel?: number;
-  textureUrls?: Record<string, string> | null;
+  textureUrls?: PbrTextureUrls | null;
 }
 
 export default function ProceduralBuilding({
@@ -74,10 +74,10 @@ export default function ProceduralBuilding({
   const detailMult = useMemo(() => getDetailLevelMultiplier(detailLevel), [detailLevel]);
 
   // Texture loading (falls back to flat colors when URLs are null)
-  const wallTex = useGeneratedTexture(textureUrls?.wall ?? null, materialColor, width / 2, totalHeight / 2);
-  const roofTex = useGeneratedTexture(textureUrls?.roof ?? null, roofColor, 2, 2);
-  const doorTex = useGeneratedTexture(textureUrls?.door ?? null, DOOR_COLOR, 1, 1);
-  const trimTex = useGeneratedTexture(textureUrls?.trim ?? null, FRAME_COLOR, 1, 1);
+  const wallTex = usePbrMaterial(textureUrls?.wall ?? null, materialColor, width / 2, totalHeight / 2);
+  const roofTex = usePbrMaterial(textureUrls?.roof ?? null, roofColor, 2, 2);
+  const doorTex = usePbrMaterial(textureUrls?.door ?? null, DOOR_COLOR, 1, 1);
+  const trimTex = usePbrMaterial(textureUrls?.trim ?? null, FRAME_COLOR, 1, 1);
 
   // Setback sections
   const hasSetback = styleConfig.setbackAfterFloor !== null && stories > (styleConfig.setbackAfterFloor ?? 0);
@@ -307,8 +307,7 @@ export default function ProceduralBuilding({
             <primitive object={geo} attach="geometry" />
             <meshStandardMaterial
               ref={i === 0 ? matRef : undefined}
-              color={wallTex.color}
-              map={wallTex.map}
+              {...wallTex}
               wireframe={wireframe}
               transparent={wireframe}
               opacity={wireframe ? 0.5 : 1}
@@ -320,8 +319,7 @@ export default function ProceduralBuilding({
           <boxGeometry args={[width, totalHeight, depth]} />
           <meshStandardMaterial
             ref={matRef}
-            color={wallTex.color}
-            map={wallTex.map}
+            {...wallTex}
             wireframe={wireframe}
             transparent={wireframe}
             opacity={wireframe ? 0.5 : 1}
@@ -340,7 +338,7 @@ export default function ProceduralBuilding({
           {windows.front.frame && (
             <mesh position={[0, 0, depth / 2 + 0.001]}>
               <primitive object={windows.front.frame} attach="geometry" />
-              <meshStandardMaterial color={trimTex.color} map={trimTex.map} />
+              <meshStandardMaterial {...trimTex} />
             </mesh>
           )}
 
@@ -352,7 +350,7 @@ export default function ProceduralBuilding({
           {windows.back.frame && (
             <mesh position={[0, 0, -(depth / 2 + 0.001)]} rotation={[0, Math.PI, 0]}>
               <primitive object={windows.back.frame} attach="geometry" />
-              <meshStandardMaterial color={trimTex.color} map={trimTex.map} />
+              <meshStandardMaterial {...trimTex} />
             </mesh>
           )}
 
@@ -364,7 +362,7 @@ export default function ProceduralBuilding({
           {windows.left.frame && (
             <mesh position={[-(width / 2 + 0.001), 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
               <primitive object={windows.left.frame} attach="geometry" />
-              <meshStandardMaterial color={trimTex.color} map={trimTex.map} />
+              <meshStandardMaterial {...trimTex} />
             </mesh>
           )}
 
@@ -376,7 +374,7 @@ export default function ProceduralBuilding({
           {windows.right.frame && (
             <mesh position={[width / 2 + 0.001, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
               <primitive object={windows.right.frame} attach="geometry" />
-              <meshStandardMaterial color={trimTex.color} map={trimTex.map} />
+              <meshStandardMaterial {...trimTex} />
             </mesh>
           )}
 
@@ -389,7 +387,7 @@ export default function ProceduralBuilding({
               </mesh>
               <mesh position={[0, 0, depth / 2 + 0.003]}>
                 <primitive object={storefront.mullions} attach="geometry" />
-                <meshStandardMaterial color={trimTex.color} map={trimTex.map} />
+                <meshStandardMaterial {...trimTex} />
               </mesh>
             </>
           )}
@@ -399,11 +397,11 @@ export default function ProceduralBuilding({
             <>
               <mesh position={[0, 0, depth / 2 + 0.003]}>
                 <primitive object={door.door} attach="geometry" />
-                <meshStandardMaterial color={doorTex.color} map={doorTex.map} />
+                <meshStandardMaterial {...doorTex} />
               </mesh>
               <mesh position={[0, 0, depth / 2 + 0.0025]}>
                 <primitive object={door.frame} attach="geometry" />
-                <meshStandardMaterial color={trimTex.color} map={trimTex.map} />
+                <meshStandardMaterial {...trimTex} />
               </mesh>
             </>
           )}
@@ -414,7 +412,7 @@ export default function ProceduralBuilding({
       {!wireframe && corniceGeo && (
         <mesh>
           <primitive object={corniceGeo} attach="geometry" />
-          <meshStandardMaterial color={wallTex.color} map={wallTex.map} />
+          <meshStandardMaterial {...wallTex} />
         </mesh>
       )}
 
@@ -422,7 +420,7 @@ export default function ProceduralBuilding({
       {!wireframe && pilasterGeo && (
         <mesh>
           <primitive object={pilasterGeo} attach="geometry" />
-          <meshStandardMaterial color={wallTex.color} map={wallTex.map} />
+          <meshStandardMaterial {...wallTex} />
         </mesh>
       )}
 
@@ -430,7 +428,7 @@ export default function ProceduralBuilding({
       {!wireframe && parapetGeo && (
         <mesh position={[0, totalHeight, 0]}>
           <primitive object={parapetGeo} attach="geometry" />
-          <meshStandardMaterial color={wallTex.color} map={wallTex.map} />
+          <meshStandardMaterial {...wallTex} />
         </mesh>
       )}
 
@@ -454,8 +452,7 @@ export default function ProceduralBuilding({
       <mesh position={[0, totalHeight + roof.offset, 0]}>
         <primitive object={roof.geo} attach="geometry" />
         <meshStandardMaterial
-          color={roofTex.color}
-          map={roofTex.map}
+          {...roofTex}
           wireframe={wireframe}
           transparent={wireframe}
           opacity={wireframe ? 0.5 : 1}

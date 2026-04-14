@@ -1,21 +1,12 @@
-from contextlib import asynccontextmanager
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import upload, projects, architect, reconstruct, generate
+from app.api import upload, projects, architect, reconstruct, generate, pose
 from app.core.config import settings
-from app.core.database import init_db
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()
-    yield
-
-
-app = FastAPI(title="Icarus", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Icarus", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,6 +20,7 @@ app.include_router(projects.router, prefix="/api")
 app.include_router(architect.router, prefix="/api")
 app.include_router(reconstruct.router, prefix="/api")
 app.include_router(generate.router, prefix="/api")
+app.include_router(pose.router, prefix="/api")
 
 
 # Serve uploaded files (images for background compositing)

@@ -12,8 +12,10 @@ import BuildingScene from "./components/BuildingScene";
 import SplatViewer from "./components/SplatViewer";
 import BackgroundControls from "./components/BackgroundControls";
 import PascalDesignEditor from "./components/PascalDesignEditor";
+import CameraRig from "./components/CameraRig";
 import { useProjectStore, type WorkflowStep } from "./store/projectStore";
 import { useProjectRestore } from "./hooks/useProjectRestore";
+import { useCameraPose } from "./hooks/useCameraPose";
 
 export default function App() {
   const currentStep = useProjectStore((s) => s.currentStep);
@@ -21,6 +23,8 @@ export default function App() {
   const splatUrl = useProjectStore((s) => s.splatUrl);
   const backgroundImageUrl = useProjectStore((s) => s.backgroundImageUrl);
   const buildingSpec = useProjectStore((s) => s.buildingSpec);
+  const cameraPose = useProjectStore((s) => s.cameraPose);
+  const orbitLocked = useProjectStore((s) => s.orbitLocked);
   const setStep = useProjectStore((s) => s.setStep);
   const completeStep = useProjectStore((s) => s.completeStep);
 
@@ -28,6 +32,8 @@ export default function App() {
 
   // Restore project state from localStorage + backend on refresh
   useProjectRestore();
+  // Estimate camera pose from the uploaded photo via the backend ML pipeline
+  useCameraPose();
 
   // Dev: ?step=reconstruct to jump to any step
   useEffect(() => {
@@ -61,10 +67,16 @@ export default function App() {
             {!showPascalEditor && <ViewportToolbar />}
             {showPascalEditor && <PascalDesignEditor />}
             {!showPascalEditor && <Canvas
-              camera={{ position: [20, 15, 20], fov: 60 }}
+              camera={{
+                position: cameraPose
+                  ? [0, cameraPose.camera_height_m, 0]
+                  : [20, 15, 20],
+                fov: cameraPose?.fov_deg ?? 60,
+              }}
               gl={{ alpha: true }}
               style={{ background: "transparent" }}
             >
+              <CameraRig />
               <ambientLight intensity={0.4} />
               <directionalLight position={[10, 20, 10]} intensity={1} />
               {!splatUrl && !backgroundImageUrl && (
@@ -79,7 +91,7 @@ export default function App() {
               )}
               <SplatViewer />
               <BuildingScene wireframe={viewportMode === "wireframe"} />
-              <OrbitControls makeDefault />
+              <OrbitControls makeDefault enabled={!orbitLocked} />
             </Canvas>}
             {currentStep === "upload" && !backgroundImageUrl && (
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-2">

@@ -14,5 +14,4 @@ diffusers>=0.27.0
 transformers>=4.38.0
 accelerate>=0.27.0
 safetensors>=0.4.0
-sqlalchemy>=2.0.0
-aiosqlite>=0.20.0
+supabase>=2.9.0

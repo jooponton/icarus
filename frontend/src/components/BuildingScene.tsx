@@ -3,6 +3,7 @@ import { TransformControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useProjectStore } from "../store/projectStore";
 import CompoundBuilding from "./CompoundBuilding";
+import SiteItems from "./SiteItems";
 
 export default function BuildingScene({ wireframe = false }: { wireframe?: boolean }) {
   const buildingSpec = useProjectStore((s) => s.buildingSpec);
@@ -10,6 +11,7 @@ export default function BuildingScene({ wireframe = false }: { wireframe?: boole
   const placement = useProjectStore((s) => s.buildingPlacement);
   const setBuildingPlacement = useProjectStore((s) => s.setBuildingPlacement);
   const transformMode = useProjectStore((s) => s.transformMode);
+  const cameraPose = useProjectStore((s) => s.cameraPose);
 
   const meshDetailLevel = useProjectStore((s) => s.meshDetailLevel);
   const textureUrls = useProjectStore((s) => s.textureUrls);
@@ -20,6 +22,19 @@ export default function BuildingScene({ wireframe = false }: { wireframe?: boole
 
   const isPlaceStep = currentStep === "place";
   const showBuilding = buildingSpec && (currentStep === "design" || currentStep === "place" || currentStep === "export");
+
+  // When a pose is available, snap the building's initial placement to the
+  // ML-estimated ground anchor so it stands on the plane detected in the photo.
+  useEffect(() => {
+    if (!cameraPose || !showBuilding) return;
+    const [ax, _ay, az] = cameraPose.anchor;
+    const isDefault =
+      placement.position[0] === 0 &&
+      placement.position[1] === 0 &&
+      placement.position[2] === 0;
+    if (!isDefault) return;
+    setBuildingPlacement({ position: [ax, 0, az] });
+  }, [cameraPose, showBuilding, placement.position, setBuildingPlacement]);
 
   // Register group ref for export
   useEffect(() => {
@@ -58,6 +73,7 @@ export default function BuildingScene({ wireframe = false }: { wireframe?: boole
         rotation={placement.rotation}
       >
         <CompoundBuilding spec={buildingSpec} wireframe={wireframe} detailLevel={meshDetailLevel} textureUrls={textureUrls} />
+        {!wireframe && <SiteItems items={buildingSpec.site_items ?? []} />}
       </group>
 
       {isPlaceStep && groupRef.current && (

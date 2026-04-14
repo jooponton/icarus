@@ -6,17 +6,11 @@ from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel
-from sqlalchemy import create_engine, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, Session
+from supabase import AsyncClient, Client
 
-from app.core.config import settings
-from app.models.texture import TextureJob, TextureStage
+from app.core.supabase import get_supabase_sync
 
 logger = logging.getLogger(__name__)
-
-_sync_url = settings.database_url.replace("sqlite+aiosqlite", "sqlite")
-_sync_engine = create_engine(_sync_url)
 
 
 class StageStatus(str, Enum):
@@ -50,69 +44,101 @@ DEFAULT_STAGES = [
     TextureStageInfo(id="trim", name="Trim texture"),
 ]
 
+_STAGE_ORDER = {s.id: i for i, s in enumerate(DEFAULT_STAGES)}
 
-def _job_to_status(job: TextureJob) -> TextureJobStatus:
+
+def _parse_dt(value) -> Optional[datetime]:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _rows_to_status(job_row: dict, stage_rows: list[dict]) -> TextureJobStatus:
+    ordered = sorted(stage_rows, key=lambda r: _STAGE_ORDER.get(r["stage_id"], 999))
     return TextureJobStatus(
-        project_id=job.project_id,
-        spec_hash=job.spec_hash,
+        project_id=job_row["project_id"],
+        spec_hash=job_row["spec_hash"],
         stages=[
             TextureStageInfo(
-                id=s.stage_id,
-                name=s.name,
-                status=StageStatus(s.status),
-                progress=s.progress,
-                error=s.error,
+                id=s["stage_id"],
+                name=s["name"],
+                status=StageStatus(s["status"]),
+                progress=s["progress"],
+                error=s.get("error"),
             )
-            for s in job.stages
+            for s in ordered
         ],
-        started_at=job.started_at,
-        completed_at=job.completed_at,
-        textures_ready=job.textures_ready,
+        started_at=_parse_dt(job_row.get("started_at")),
+        completed_at=_parse_dt(job_row.get("completed_at")),
+        textures_ready=job_row["textures_ready"],
     )
+
+
+async def _latest_job(sb: AsyncClient, project_id: str) -> Optional[dict]:
+    resp = (
+        await sb.table("texture_jobs")
+        .select("*")
+        .eq("project_id", project_id)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return resp.data[0] if resp.data else None
+
+
+async def _fetch_stages(sb: AsyncClient, job_id: int) -> list[dict]:
+    resp = (
+        await sb.table("texture_stages")
+        .select("*")
+        .eq("job_id", job_id)
+        .execute()
+    )
+    return resp.data
 
 
 async def create_job(
-    db: AsyncSession, project_id: str, spec_hash: str
+    sb: AsyncClient, project_id: str, spec_hash: str
 ) -> TextureJobStatus:
-    job = TextureJob(
-        project_id=project_id,
-        spec_hash=spec_hash,
-        started_at=datetime.now(timezone.utc),
+    job_resp = (
+        await sb.table("texture_jobs")
+        .insert({
+            "project_id": project_id,
+            "spec_hash": spec_hash,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "textures_ready": False,
+        })
+        .execute()
     )
-    for s in DEFAULT_STAGES:
-        job.stages.append(
-            TextureStage(
-                stage_id=s.id,
-                name=s.name,
-                status=s.status.value,
-                progress=s.progress,
-            )
-        )
-    db.add(job)
-    await db.commit()
-    await db.refresh(job, ["stages"])
+    job_row = job_resp.data[0]
+    stage_rows = [
+        {
+            "job_id": job_row["id"],
+            "stage_id": s.id,
+            "name": s.name,
+            "status": s.status.value,
+            "progress": s.progress,
+        }
+        for s in DEFAULT_STAGES
+    ]
+    stages_resp = await sb.table("texture_stages").insert(stage_rows).execute()
     logger.info("Created texture job for project %s (hash: %s)", project_id, spec_hash)
-    return _job_to_status(job)
+    return _rows_to_status(job_row, stages_resp.data)
 
 
 async def get_job(
-    db: AsyncSession, project_id: str
+    sb: AsyncClient, project_id: str
 ) -> Optional[TextureJobStatus]:
-    result = await db.execute(
-        select(TextureJob)
-        .where(TextureJob.project_id == project_id)
-        .options(selectinload(TextureJob.stages))
-        .order_by(TextureJob.id.desc())
-        .limit(1)
-    )
-    job = result.scalar_one_or_none()
-    if not job:
+    job_row = await _latest_job(sb, project_id)
+    if not job_row:
         return None
-    return _job_to_status(job)
+    stage_rows = await _fetch_stages(sb, job_row["id"])
+    return _rows_to_status(job_row, stage_rows)
 
 
 async def update_stage(
-    db: AsyncSession,
+    sb: AsyncClient,
     project_id: str,
     stage_id: str,
     *,
@@ -120,82 +146,107 @@ async def update_stage(
     progress: Optional[int] = None,
     error: Optional[str] = None,
 ) -> None:
-    result = await db.execute(
-        select(TextureJob)
-        .where(TextureJob.project_id == project_id)
-        .options(selectinload(TextureJob.stages))
-        .order_by(TextureJob.id.desc())
-        .limit(1)
-    )
-    job = result.scalar_one_or_none()
-    if not job:
+    job_row = await _latest_job(sb, project_id)
+    if not job_row:
         return
-    for stage in job.stages:
-        if stage.stage_id == stage_id:
-            if status is not None:
-                stage.status = status.value
-            if progress is not None:
-                stage.progress = progress
-            if error is not None:
-                stage.error = error
-                stage.status = StageStatus.ERROR.value
-            break
-    await db.commit()
-
-
-async def mark_textures_ready(db: AsyncSession, project_id: str) -> None:
-    result = await db.execute(
-        select(TextureJob)
-        .where(TextureJob.project_id == project_id)
-        .order_by(TextureJob.id.desc())
+    stage_resp = (
+        await sb.table("texture_stages")
+        .select("*")
+        .eq("job_id", job_row["id"])
+        .eq("stage_id", stage_id)
         .limit(1)
+        .execute()
     )
-    job = result.scalar_one_or_none()
-    if job:
-        job.textures_ready = True
-        job.completed_at = datetime.now(timezone.utc)
-        await db.commit()
+    if not stage_resp.data:
+        return
+    stage = stage_resp.data[0]
+    patch: dict = {}
+    if status is not None:
+        patch["status"] = status.value
+    if progress is not None:
+        patch["progress"] = progress
+    if error is not None:
+        patch["error"] = error
+        patch["status"] = StageStatus.ERROR.value
+    if patch:
+        await (
+            sb.table("texture_stages")
+            .update(patch)
+            .eq("id", stage["id"])
+            .execute()
+        )
+
+
+async def mark_textures_ready(sb: AsyncClient, project_id: str) -> None:
+    job_row = await _latest_job(sb, project_id)
+    if not job_row:
+        return
+    await (
+        sb.table("texture_jobs")
+        .update({
+            "textures_ready": True,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", job_row["id"])
+        .execute()
+    )
 
 
 # --- Sync wrappers for background task usage (texture_generator) ---
 
 
+def _latest_job_sync(sb: Client, project_id: str) -> Optional[dict]:
+    resp = (
+        sb.table("texture_jobs")
+        .select("*")
+        .eq("project_id", project_id)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return resp.data[0] if resp.data else None
+
+
 def create_job_sync(project_id: str, spec_hash: str) -> TextureJobStatus:
-    with Session(_sync_engine) as session:
-        job = TextureJob(
-            project_id=project_id,
-            spec_hash=spec_hash,
-            started_at=datetime.now(timezone.utc),
-        )
-        for s in DEFAULT_STAGES:
-            job.stages.append(
-                TextureStage(
-                    stage_id=s.id,
-                    name=s.name,
-                    status=s.status.value,
-                    progress=s.progress,
-                )
-            )
-        session.add(job)
-        session.commit()
-        session.refresh(job, ["stages"])
-        logger.info("Created texture job for project %s (hash: %s)", project_id, spec_hash)
-        return _job_to_status(job)
+    sb = get_supabase_sync()
+    job_resp = (
+        sb.table("texture_jobs")
+        .insert({
+            "project_id": project_id,
+            "spec_hash": spec_hash,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "textures_ready": False,
+        })
+        .execute()
+    )
+    job_row = job_resp.data[0]
+    stage_rows = [
+        {
+            "job_id": job_row["id"],
+            "stage_id": s.id,
+            "name": s.name,
+            "status": s.status.value,
+            "progress": s.progress,
+        }
+        for s in DEFAULT_STAGES
+    ]
+    stages_resp = sb.table("texture_stages").insert(stage_rows).execute()
+    logger.info("Created texture job for project %s (hash: %s)", project_id, spec_hash)
+    return _rows_to_status(job_row, stages_resp.data)
 
 
 def get_job_sync(project_id: str) -> Optional[TextureJobStatus]:
-    with Session(_sync_engine) as session:
-        result = session.execute(
-            select(TextureJob)
-            .where(TextureJob.project_id == project_id)
-            .options(selectinload(TextureJob.stages))
-            .order_by(TextureJob.id.desc())
-            .limit(1)
-        )
-        job = result.scalar_one_or_none()
-        if not job:
-            return None
-        return _job_to_status(job)
+    sb = get_supabase_sync()
+    job_row = _latest_job_sync(sb, project_id)
+    if not job_row:
+        return None
+    stage_resp = (
+        sb.table("texture_stages")
+        .select("*")
+        .eq("job_id", job_row["id"])
+        .execute()
+    )
+    return _rows_to_status(job_row, stage_resp.data)
 
 
 def update_stage_sync(
@@ -206,40 +257,49 @@ def update_stage_sync(
     progress: Optional[int] = None,
     error: Optional[str] = None,
 ) -> None:
-    with Session(_sync_engine) as session:
-        result = session.execute(
-            select(TextureJob)
-            .where(TextureJob.project_id == project_id)
-            .options(selectinload(TextureJob.stages))
-            .order_by(TextureJob.id.desc())
-            .limit(1)
+    sb = get_supabase_sync()
+    job_row = _latest_job_sync(sb, project_id)
+    if not job_row:
+        return
+    stage_resp = (
+        sb.table("texture_stages")
+        .select("*")
+        .eq("job_id", job_row["id"])
+        .eq("stage_id", stage_id)
+        .limit(1)
+        .execute()
+    )
+    if not stage_resp.data:
+        return
+    stage = stage_resp.data[0]
+    patch: dict = {}
+    if status is not None:
+        patch["status"] = status.value
+    if progress is not None:
+        patch["progress"] = progress
+    if error is not None:
+        patch["error"] = error
+        patch["status"] = StageStatus.ERROR.value
+    if patch:
+        (
+            sb.table("texture_stages")
+            .update(patch)
+            .eq("id", stage["id"])
+            .execute()
         )
-        job = result.scalar_one_or_none()
-        if not job:
-            return
-        for stage in job.stages:
-            if stage.stage_id == stage_id:
-                if status is not None:
-                    stage.status = status.value
-                if progress is not None:
-                    stage.progress = progress
-                if error is not None:
-                    stage.error = error
-                    stage.status = StageStatus.ERROR.value
-                break
-        session.commit()
 
 
 def mark_textures_ready_sync(project_id: str) -> None:
-    with Session(_sync_engine) as session:
-        result = session.execute(
-            select(TextureJob)
-            .where(TextureJob.project_id == project_id)
-            .order_by(TextureJob.id.desc())
-            .limit(1)
-        )
-        job = result.scalar_one_or_none()
-        if job:
-            job.textures_ready = True
-            job.completed_at = datetime.now(timezone.utc)
-            session.commit()
+    sb = get_supabase_sync()
+    job_row = _latest_job_sync(sb, project_id)
+    if not job_row:
+        return
+    (
+        sb.table("texture_jobs")
+        .update({
+            "textures_ready": True,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", job_row["id"])
+        .execute()
+    )

@@ -1,103 +1,126 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+import uuid
 
-from app.core.database import get_db
-from app.models.project import Project
+from fastapi import APIRouter, Depends, HTTPException
+from supabase import AsyncClient
+
+from app.core.supabase import get_supabase
 from app.schemas.project import ProjectCreate
 
 router = APIRouter(tags=["projects"])
 
 
 @router.get("/projects")
-async def list_projects(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Project).order_by(Project.created_at.desc())
+async def list_projects(sb: AsyncClient = Depends(get_supabase)):
+    resp = (
+        await sb.table("projects")
+        .select("*")
+        .order("created_at", desc=True)
+        .execute()
     )
-    projects = result.scalars().all()
     return {
         "projects": [
             {
-                "id": p.id,
-                "name": p.name,
-                "description": p.description,
-                "created_at": p.created_at.isoformat() if p.created_at else None,
-                "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+                "id": p["id"],
+                "name": p["name"],
+                "description": p["description"],
+                "created_at": p["created_at"],
+                "updated_at": p["updated_at"],
             }
-            for p in projects
+            for p in resp.data
         ]
     }
 
 
 @router.get("/projects/{project_id}")
-async def get_project(project_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(Project)
-        .where(Project.id == project_id)
-        .options(
-            selectinload(Project.reconstruction_jobs),
-            selectinload(Project.texture_jobs),
-            selectinload(Project.building_specs),
-        )
+async def get_project(project_id: str, sb: AsyncClient = Depends(get_supabase)):
+    proj_resp = (
+        await sb.table("projects")
+        .select("*")
+        .eq("id", project_id)
+        .limit(1)
+        .execute()
     )
-    project = result.scalar_one_or_none()
-    if not project:
+    if not proj_resp.data:
         raise HTTPException(404, f"Project {project_id} not found")
+    project = proj_resp.data[0]
 
-    recon = project.reconstruction_jobs[-1] if project.reconstruction_jobs else None
-    tex = project.texture_jobs[-1] if project.texture_jobs else None
-    spec = project.building_specs[-1] if project.building_specs else None
+    recon_resp = (
+        await sb.table("reconstruction_jobs")
+        .select("*")
+        .eq("project_id", project_id)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    tex_resp = (
+        await sb.table("texture_jobs")
+        .select("*")
+        .eq("project_id", project_id)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    spec_resp = (
+        await sb.table("building_specs")
+        .select("*")
+        .eq("project_id", project_id)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+
+    recon = recon_resp.data[0] if recon_resp.data else None
+    tex = tex_resp.data[0] if tex_resp.data else None
+    spec = spec_resp.data[0] if spec_resp.data else None
 
     return {
-        "project_id": project.id,
-        "name": project.name,
-        "description": project.description,
-        "created_at": project.created_at.isoformat() if project.created_at else None,
-        "status": "splat_ready" if (recon and recon.splat_ready) else "pending",
+        "project_id": project["id"],
+        "name": project["name"],
+        "description": project["description"],
+        "created_at": project["created_at"],
+        "status": "splat_ready" if (recon and recon["splat_ready"]) else "pending",
         "has_spec": spec is not None,
         "spec": {
-            "building_type": spec.building_type,
-            "stories": spec.stories,
-            "footprint_width": spec.footprint_width,
-            "footprint_depth": spec.footprint_depth,
-            "roof_style": spec.roof_style,
-            "material": spec.material,
-            "style": spec.style,
-            "notes": spec.notes or "",
-            "footprint_shape": spec.footprint_shape,
-            "wing_width": spec.wing_width,
-            "wing_depth": spec.wing_depth,
+            "building_type": spec["building_type"],
+            "stories": spec["stories"],
+            "footprint_width": spec["footprint_width"],
+            "footprint_depth": spec["footprint_depth"],
+            "roof_style": spec["roof_style"],
+            "material": spec["material"],
+            "style": spec["style"],
+            "notes": spec["notes"] or "",
+            "footprint_shape": spec["footprint_shape"],
+            "wing_width": spec["wing_width"],
+            "wing_depth": spec["wing_depth"],
         } if spec else None,
-        "has_textures": tex.textures_ready if tex else False,
+        "has_textures": tex["textures_ready"] if tex else False,
     }
 
 
 @router.post("/projects")
-async def create_project(body: ProjectCreate, db: AsyncSession = Depends(get_db)):
-    import uuid
-
-    project = Project(
-        id=str(uuid.uuid4()),
-        name=body.name,
-        description=body.description,
+async def create_project(body: ProjectCreate, sb: AsyncClient = Depends(get_supabase)):
+    pid = str(uuid.uuid4())
+    resp = (
+        await sb.table("projects")
+        .insert({"id": pid, "name": body.name, "description": body.description})
+        .execute()
     )
-    db.add(project)
-    await db.commit()
-    await db.refresh(project)
+    row = resp.data[0]
     return {
-        "project_id": project.id,
-        "name": project.name,
-        "description": project.description,
+        "project_id": row["id"],
+        "name": row["name"],
+        "description": row["description"],
     }
 
 
 @router.delete("/projects/{project_id}")
-async def delete_project(project_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
+async def delete_project(project_id: str, sb: AsyncClient = Depends(get_supabase)):
+    resp = (
+        await sb.table("projects")
+        .delete()
+        .eq("id", project_id)
+        .execute()
+    )
+    if not resp.data:
         raise HTTPException(404, f"Project {project_id} not found")
-    await db.delete(project)
-    await db.commit()
     return {"deleted": project_id}

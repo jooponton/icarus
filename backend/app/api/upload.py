@@ -1,14 +1,11 @@
 import uuid
-from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, UploadFile, File
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from supabase import AsyncClient
 
 from app.core.config import settings
-from app.core.database import get_db
-from app.models.project import Project
+from app.core.supabase import get_supabase
 
 router = APIRouter(tags=["upload"])
 
@@ -17,18 +14,20 @@ router = APIRouter(tags=["upload"])
 async def upload_footage(
     files: list[UploadFile] = File(...),
     project_id: Optional[str] = Form(None),
-    db: AsyncSession = Depends(get_db),
+    sb: AsyncClient = Depends(get_supabase),
 ):
     if not project_id:
         project_id = str(uuid.uuid4())
 
-    # Create project in DB if it doesn't exist
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        project = Project(id=project_id)
-        db.add(project)
-        await db.commit()
+    existing = (
+        await sb.table("projects")
+        .select("id")
+        .eq("id", project_id)
+        .limit(1)
+        .execute()
+    )
+    if not existing.data:
+        await sb.table("projects").insert({"id": project_id}).execute()
 
     project_dir = settings.upload_dir / project_id
     project_dir.mkdir(parents=True, exist_ok=True)

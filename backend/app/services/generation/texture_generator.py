@@ -19,11 +19,13 @@ from app.services.generation.texture_job_manager import (
     mark_textures_ready_sync as mark_textures_ready,
     update_stage_sync as update_stage,
 )
+from app.services.generation.pbr_derive import derive_pbr_stack
 from app.services.generation.texture_prompts import build_prompts
 
 logger = logging.getLogger(__name__)
 
 TEXTURE_PARTS = ["wall", "roof", "door", "trim"]
+PBR_CHANNELS = ["albedo", "normal", "roughness", "ao"]
 
 # Lazy-loaded singleton pipeline
 _pipeline: Any = None
@@ -60,12 +62,16 @@ def _get_pipeline():
 
 
 def compute_spec_hash(spec: BuildingSpec) -> str:
-    """Deterministic hash of spec fields that affect texture appearance."""
+    """Deterministic hash of spec fields that affect texture appearance.
+    Per-surface material overrides are included so changing any of them
+    triggers regeneration."""
+    surface = spec.surface_materials.model_dump() if spec.surface_materials else {}
     key_fields = {
         "material": spec.material,
         "style": spec.style,
         "building_type": spec.building_type,
         "roof_style": spec.roof_style,
+        "surface": surface,
     }
     return hashlib.sha256(
         json.dumps(key_fields, sort_keys=True).encode()
@@ -77,11 +83,15 @@ def _get_texture_dir(project_id: str, spec_hash: str) -> Path:
 
 
 def _is_cached(project_id: str, spec_hash: str) -> bool:
-    """Check if all texture PNGs already exist on disk."""
+    """Check if the full PBR stack (all 4 channels × 4 parts) is on disk."""
     texture_dir = _get_texture_dir(project_id, spec_hash)
     if not texture_dir.exists():
         return False
-    return all((texture_dir / f"{part}.png").exists() for part in TEXTURE_PARTS)
+    for part in TEXTURE_PARTS:
+        for ch in PBR_CHANNELS:
+            if not (texture_dir / f"{part}.{ch}.png").exists():
+                return False
+    return True
 
 
 def _generate_single_texture(positive: str, negative: str) -> Image.Image:
@@ -152,22 +162,28 @@ async def generate_textures(project_id: str, spec: BuildingSpec) -> None:
         update_stage(project_id, part_id, status=StageStatus.RUNNING, progress=0)
         try:
             positive, negative = prompts[part_id]
-            update_stage(project_id, part_id, progress=25)
+            update_stage(project_id, part_id, progress=20)
 
-            image = await loop.run_in_executor(
+            albedo = await loop.run_in_executor(
                 None, _generate_single_texture, positive, negative
             )
+            update_stage(project_id, part_id, progress=60)
+
+            albedo = _make_seamless(albedo)
             update_stage(project_id, part_id, progress=75)
 
-            image = _make_seamless(image)
-            image.save(texture_dir / f"{part_id}.png", "PNG")
+            # Derive normal + roughness + AO from the albedo in the worker thread.
+            pbr = await loop.run_in_executor(None, derive_pbr_stack, albedo)
+            pbr.albedo.save(texture_dir / f"{part_id}.albedo.png", "PNG")
+            pbr.normal.save(texture_dir / f"{part_id}.normal.png", "PNG")
+            pbr.roughness.save(texture_dir / f"{part_id}.roughness.png", "PNG")
+            pbr.ao.save(texture_dir / f"{part_id}.ao.png", "PNG")
 
             update_stage(project_id, part_id, status=StageStatus.COMPLETED, progress=100)
-            logger.info("Generated %s texture for %s", part_id, project_id)
+            logger.info("Generated %s PBR stack for %s", part_id, project_id)
         except Exception as e:
             logger.error("Failed to generate %s texture: %s", part_id, e)
             update_stage(project_id, part_id, error=str(e))
-            # Mark remaining stages as error so frontend knows to stop polling
             for remaining in TEXTURE_PARTS[TEXTURE_PARTS.index(part_id) + 1:]:
                 update_stage(project_id, remaining, error="Skipped due to earlier failure")
             return

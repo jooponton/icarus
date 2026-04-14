@@ -18,6 +18,35 @@ export const WORKFLOW_STEPS: { key: WorkflowStep; label: string }[] = [
 
 // --- Types ---
 
+export interface SurfaceMaterials {
+  wall?: string | null;
+  roof?: string | null;
+  trim?: string | null;
+  door?: string | null;
+}
+
+export type SiteItemType =
+  | "gas_pump"
+  | "pump_canopy"
+  | "bollard"
+  | "light_pole"
+  | "parking_stripe"
+  | "curb"
+  | "dumpster"
+  | "hvac_unit"
+  | "tree"
+  | "bench"
+  | "trash_can"
+  | "sign_pole";
+
+export interface SiteItem {
+  type: SiteItemType;
+  position: [number, number, number];
+  rotation_y: number;
+  scale: number;
+  label: string;
+}
+
 export interface BuildingSpec {
   building_type: string;
   stories: number;
@@ -30,7 +59,18 @@ export interface BuildingSpec {
   footprint_shape?: "rectangular" | "l-shaped";
   wing_width?: number;
   wing_depth?: number;
+  surface_materials?: SurfaceMaterials;
+  site_items?: SiteItem[];
 }
+
+export interface PbrChannelUrls {
+  albedo: string;
+  normal: string;
+  roughness: string;
+  ao: string;
+}
+
+export type PbrTextureUrls = Record<string, PbrChannelUrls>;
 
 export interface UploadedFile {
   id: string;
@@ -86,6 +126,22 @@ export type TransformMode = "translate" | "rotate";
 export interface BuildingPlacement {
   position: [number, number, number];
   rotation: [number, number, number];
+}
+
+export interface CameraPose {
+  fov_deg: number;
+  width: number;
+  height: number;
+  pitch_deg: number;
+  roll_deg: number;
+  camera_height_m: number;
+  anchor: [number, number, number];
+  plane_normal: [number, number, number];
+  plane_d: number;
+  depth_map_url: string | null;
+  depth_min_m: number;
+  depth_max_m: number;
+  source: string;
 }
 
 export type ViewportMode = "grid" | "street" | "wireframe";
@@ -176,10 +232,10 @@ interface ProjectState {
   // Textures
   textureStatus: "idle" | "generating" | "ready" | "error";
   textureSpecHash: string | null;
-  textureUrls: Record<string, string> | null;
+  textureUrls: PbrTextureUrls | null;
   setTextureStatus: (s: "idle" | "generating" | "ready" | "error") => void;
   setTextureSpecHash: (h: string | null) => void;
-  setTextureUrls: (urls: Record<string, string> | null) => void;
+  setTextureUrls: (urls: PbrTextureUrls | null) => void;
 
   // Placement
   buildingPlacement: BuildingPlacement;
@@ -202,6 +258,14 @@ interface ProjectState {
   // Background image
   backgroundImageUrl: string | null;
   setBackgroundImageUrl: (url: string | null) => void;
+
+  // Camera pose (from backend ML pipeline; anchors building to the uploaded photo)
+  cameraPose: CameraPose | null;
+  cameraPoseLoading: boolean;
+  orbitLocked: boolean;
+  setCameraPose: (p: CameraPose | null) => void;
+  setCameraPoseLoading: (v: boolean) => void;
+  setOrbitLocked: (v: boolean) => void;
 
   // Chat drawer
   chatDrawerOpen: boolean;
@@ -346,7 +410,16 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
   // Background image
   backgroundImageUrl: null,
-  setBackgroundImageUrl: (url) => set({ backgroundImageUrl: url }),
+  setBackgroundImageUrl: (url) =>
+    set({ backgroundImageUrl: url, cameraPose: null, orbitLocked: true }),
+
+  // Camera pose
+  cameraPose: null,
+  cameraPoseLoading: false,
+  orbitLocked: true,
+  setCameraPose: (p) => set({ cameraPose: p }),
+  setCameraPoseLoading: (v) => set({ cameraPoseLoading: v }),
+  setOrbitLocked: (v) => set({ orbitLocked: v }),
 
   // Chat drawer
   chatDrawerOpen: false,

@@ -1,11 +1,11 @@
-import type { BuildingSpec } from "../store/projectStore";
+import type { BuildingSpec, PbrTextureUrls } from "../store/projectStore";
 import ProceduralBuilding from "./ProceduralBuilding";
 
 interface Props {
   spec: BuildingSpec;
   wireframe?: boolean;
   detailLevel?: number;
-  textureUrls?: Record<string, string> | null;
+  textureUrls?: PbrTextureUrls | null;
 }
 
 /**

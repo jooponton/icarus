@@ -13,8 +13,9 @@ class Settings(BaseSettings):
     ffmpeg_binary: str = "ffmpeg"
     splat_training_iterations: int = 7000
 
-    # Database
-    database_url: str = "sqlite+aiosqlite:///data/icarus.db"
+    # Supabase
+    supabase_url: str = ""
+    supabase_service_role_key: str = ""
 
     # Texture generation
     texture_dir: Path = Path("data/textures")

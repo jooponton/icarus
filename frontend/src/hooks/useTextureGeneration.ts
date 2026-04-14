@@ -1,25 +1,42 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useProjectStore } from "../store/projectStore";
+import type { BuildingSpec, PbrTextureUrls } from "../store/projectStore";
 
 const API_BASE = "/api";
 const POLL_INTERVAL = 2000;
 const DEBOUNCE_MS = 1000;
+const PARTS = ["wall", "roof", "door", "trim"] as const;
+
+function buildPbrUrls(projectId: string, hash: string): PbrTextureUrls {
+  const urls: PbrTextureUrls = {};
+  for (const part of PARTS) {
+    urls[part] = {
+      albedo: `${API_BASE}/generate/textures/${projectId}/${part}/albedo?h=${hash}`,
+      normal: `${API_BASE}/generate/textures/${projectId}/${part}/normal?h=${hash}`,
+      roughness: `${API_BASE}/generate/textures/${projectId}/${part}/roughness?h=${hash}`,
+      ao: `${API_BASE}/generate/textures/${projectId}/${part}/ao?h=${hash}`,
+    };
+  }
+  return urls;
+}
 
 /**
- * Compute a simple hash of the spec fields that affect textures.
- * Matches the backend's compute_spec_hash logic (same fields, sorted keys).
+ * Mirrors backend compute_spec_hash: includes material, style, building_type,
+ * roof_style, and per-surface material overrides.
  */
-async function computeSpecHash(spec: {
-  material: string;
-  style: string;
-  building_type: string;
-  roof_style: string;
-}): Promise<string> {
+async function computeSpecHash(spec: BuildingSpec): Promise<string> {
+  const sm = spec.surface_materials ?? {};
   const keyFields = {
     building_type: spec.building_type,
     material: spec.material,
     roof_style: spec.roof_style,
     style: spec.style,
+    surface: {
+      wall: sm.wall ?? null,
+      roof: sm.roof ?? null,
+      trim: sm.trim ?? null,
+      door: sm.door ?? null,
+    },
   };
   const data = new TextEncoder().encode(JSON.stringify(keyFields));
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -27,12 +44,6 @@ async function computeSpecHash(spec: {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
 }
 
-/**
- * Hook that manages the texture generation lifecycle:
- * 1. On buildingSpec change, POST to start generation
- * 2. Poll status until textures_ready
- * 3. Set texture URLs in the store
- */
 export function useTextureGeneration() {
   const buildingSpec = useProjectStore((s) => s.buildingSpec);
   const projectId = useProjectStore((s) => s.projectId);
@@ -63,15 +74,9 @@ export function useTextureGeneration() {
           stopPolling();
           setTextureStatus("ready");
           setTextureSpecHash(hash);
-          setTextureUrls({
-            wall: `${API_BASE}/generate/textures/${pid}/wall?h=${hash}`,
-            roof: `${API_BASE}/generate/textures/${pid}/roof?h=${hash}`,
-            door: `${API_BASE}/generate/textures/${pid}/door?h=${hash}`,
-            trim: `${API_BASE}/generate/textures/${pid}/trim?h=${hash}`,
-          });
+          setTextureUrls(buildPbrUrls(pid, hash));
         }
 
-        // Check for errors
         if (data.stages?.some((s: { status: string }) => s.status === "error")) {
           stopPolling();
           setTextureStatus("error");
@@ -89,11 +94,8 @@ export function useTextureGeneration() {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       const hash = await computeSpecHash(buildingSpec);
-
-      // Skip if hash matches what we already have
       if (hash === textureSpecHash) return;
 
-      // Cancel any in-flight request
       abortRef.current?.abort();
       stopPolling();
 
@@ -118,19 +120,12 @@ export function useTextureGeneration() {
         const data = await res.json();
 
         if (data.status === "cached") {
-          // Textures already exist — set URLs immediately
           setTextureStatus("ready");
           setTextureSpecHash(hash);
-          setTextureUrls({
-            wall: `${API_BASE}/generate/textures/${projectId}/wall?h=${hash}`,
-            roof: `${API_BASE}/generate/textures/${projectId}/roof?h=${hash}`,
-            door: `${API_BASE}/generate/textures/${projectId}/door?h=${hash}`,
-            trim: `${API_BASE}/generate/textures/${projectId}/trim?h=${hash}`,
-          });
+          setTextureUrls(buildPbrUrls(projectId, hash));
           return;
         }
 
-        // Start polling
         pollRef.current = setInterval(() => pollStatus(projectId, hash), POLL_INTERVAL);
       } catch {
         // Aborted or network error
@@ -142,5 +137,14 @@ export function useTextureGeneration() {
       abortRef.current?.abort();
       stopPolling();
     };
-  }, [buildingSpec, projectId, textureSpecHash, setTextureStatus, setTextureSpecHash, setTextureUrls, stopPolling, pollStatus]);
+  }, [
+    buildingSpec,
+    projectId,
+    textureSpecHash,
+    setTextureStatus,
+    setTextureSpecHash,
+    setTextureUrls,
+    stopPolling,
+    pollStatus,
+  ]);
 }

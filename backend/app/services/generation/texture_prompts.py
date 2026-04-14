@@ -68,43 +68,75 @@ def _get_roof_material(roof_style: str, material: str) -> str:
     return roof_map.get(material.lower(), roof_map.get("default", "roofing material"))
 
 
+def _expand_material(raw: str | None, fallback_key: str, fallback_material: str) -> str:
+    """Turn a user-supplied material string into a rich SD prompt fragment.
+    If the user gave freeform text, keep it verbatim and append surface hints.
+    If they used a known keyword, look up the canonical descriptor."""
+    if raw and raw.strip():
+        key = raw.strip().lower()
+        # Known keyword → canonical rich descriptor
+        if key in MATERIAL_DESCRIPTORS:
+            return MATERIAL_DESCRIPTORS[key]
+        # Freeform — keep the user's words, let diffusion interpret them
+        return raw.strip()
+    # Fall back to the spec's primary material
+    return MATERIAL_DESCRIPTORS.get(
+        fallback_material.lower(), fallback_material or fallback_key
+    )
+
+
 def build_prompts(spec: BuildingSpec) -> dict[str, tuple[str, str]]:
     """Convert a BuildingSpec into Stable Diffusion prompts for each texture part.
 
+    Per-surface overrides on `spec.surface_materials` win over the primary
+    `spec.material`, and both accept freeform text ("weathered corten steel
+    with rust patina") — not just the old six keywords.
+
     Returns: {part_id: (positive_prompt, negative_prompt)}
     """
-    material_desc = MATERIAL_DESCRIPTORS.get(
-        spec.material.lower(), f"{spec.material} building material"
+    surface = spec.surface_materials
+    wall_desc = _expand_material(surface.wall, "wall", spec.material)
+    roof_desc = _expand_material(
+        surface.roof,
+        "roof",
+        _get_roof_material(spec.roof_style, spec.material),
     )
+    door_desc = _expand_material(
+        surface.door,
+        "door",
+        DOOR_MATERIALS.get(spec.building_type.lower(), "solid door, paneled"),
+    )
+    trim_desc = _expand_material(surface.trim, "trim", "painted wood trim, window frame moulding")
+
     style_mod = STYLE_MODIFIERS.get(
         spec.style.lower(), "architectural surface"
     )
-    roof_material = _get_roof_material(spec.roof_style, spec.material)
-    door_material = DOOR_MATERIALS.get(
-        spec.building_type.lower(), "solid door, paneled"
-    )
 
-    base_suffix = "photorealistic, even lighting, no shadows, square tile, high resolution"
+    base_suffix = (
+        "photorealistic, even diffuse lighting, no shadows, no highlights, "
+        "orthographic, square tile, high resolution, physically based material, "
+        "surface detail visible"
+    )
 
     prompts: dict[str, tuple[str, str]] = {
         "wall": (
-            f"seamless tileable texture of {material_desc}, {style_mod}, "
+            f"seamless tileable PBR texture of {wall_desc}, {style_mod}, "
             f"architectural wall surface, {base_suffix}",
             NEGATIVE_PROMPT,
         ),
         "roof": (
-            f"seamless tileable texture of {roof_material}, "
+            f"seamless tileable PBR texture of {roof_desc}, "
             f"roofing material, top-down view, {base_suffix}",
             NEGATIVE_PROMPT,
         ),
         "door": (
-            f"seamless tileable texture of {door_material}, "
+            f"seamless tileable PBR texture of {door_desc}, "
             f"{style_mod}, door surface, {base_suffix}",
             NEGATIVE_PROMPT,
         ),
         "trim": (
-            f"seamless tileable texture of painted wood trim, "
-            f"window frame moulding, {style_mod}, {base_suffix}",
+            f"seamless tileable PBR texture of {trim_desc}, "
+            f"{style_mod}, {base_suffix}",
             NEGATIVE_PROMPT,
         ),
     }

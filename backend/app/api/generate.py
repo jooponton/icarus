@@ -2,13 +2,14 @@ import re
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
-from sqlalchemy.ext.asyncio import AsyncSession
+from supabase import AsyncClient
 
 from app.core.config import settings
-from app.core.database import get_db
+from app.core.supabase import get_supabase
 from app.schemas.project import BuildingSpec
 from app.schemas.validation import ValidationResult
 from app.services.generation.texture_generator import (
+    PBR_CHANNELS,
     TEXTURE_PARTS,
     compute_spec_hash,
     generate_textures,
@@ -36,13 +37,12 @@ async def start_texture_generation(
     project_id: str,
     spec: BuildingSpec,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
+    sb: AsyncClient = Depends(get_supabase),
 ):
     _validate_project_id(project_id)
     spec_hash = compute_spec_hash(spec)
 
-    # Check if already running with a different hash
-    existing = await get_job(db, project_id)
+    existing = await get_job(sb, project_id)
     if (
         existing
         and existing.spec_hash != spec_hash
@@ -51,7 +51,6 @@ async def start_texture_generation(
     ):
         raise HTTPException(409, "Texture generation already in progress with different spec")
 
-    # Check if already cached
     if existing and existing.spec_hash == spec_hash and existing.textures_ready:
         return {"status": "cached", "spec_hash": spec_hash}
 
@@ -62,31 +61,37 @@ async def start_texture_generation(
 @router.get("/generate/textures/{project_id}/status")
 async def texture_status(
     project_id: str,
-    db: AsyncSession = Depends(get_db),
+    sb: AsyncClient = Depends(get_supabase),
 ):
     _validate_project_id(project_id)
-    job = await get_job(db, project_id)
+    job = await get_job(sb, project_id)
     if not job:
         raise HTTPException(404, "No texture job found for this project")
     return job
 
 
-@router.get("/generate/textures/{project_id}/{part_id}")
-async def get_texture(
+@router.get("/generate/textures/{project_id}/{part_id}/{channel}")
+async def get_texture_channel(
     project_id: str,
     part_id: str,
-    db: AsyncSession = Depends(get_db),
+    channel: str,
+    sb: AsyncClient = Depends(get_supabase),
 ):
+    """Serve a single PBR channel (albedo/normal/roughness/ao) for a part."""
     _validate_project_id(project_id)
     if part_id not in TEXTURE_PARTS:
         raise HTTPException(400, f"Invalid part: {part_id}. Must be one of {TEXTURE_PARTS}")
+    if channel not in PBR_CHANNELS:
+        raise HTTPException(400, f"Invalid channel: {channel}. Must be one of {PBR_CHANNELS}")
 
-    job = await get_job(db, project_id)
+    job = await get_job(sb, project_id)
     if not job:
         raise HTTPException(404, "No texture job found")
 
-    texture_path = settings.texture_dir / project_id / job.spec_hash / f"{part_id}.png"
+    texture_path = (
+        settings.texture_dir / project_id / job.spec_hash / f"{part_id}.{channel}.png"
+    )
     if not texture_path.exists():
-        raise HTTPException(404, f"Texture {part_id} not yet generated")
+        raise HTTPException(404, f"Texture {part_id}.{channel} not yet generated")
 
     return FileResponse(texture_path, media_type="image/png")

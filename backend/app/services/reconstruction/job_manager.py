@@ -1,24 +1,16 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel
-from sqlalchemy import create_engine, select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, Session
+from supabase import AsyncClient, Client
 
-from app.core.config import settings
-from app.models.reconstruction import ReconstructionJob, ReconstructionStage
+from app.core.supabase import get_supabase_sync
 
 logger = logging.getLogger(__name__)
-
-# Sync engine for background thread usage (colmap, gaussian splatting threads)
-_sync_url = settings.database_url.replace("sqlite+aiosqlite", "sqlite")
-_sync_engine = create_engine(_sync_url)
 
 
 class StageStatus(str, Enum):
@@ -53,65 +45,97 @@ DEFAULT_STAGES = [
     StageInfo(id="convert", name="Splat conversion"),
 ]
 
+_STAGE_ORDER = {s.id: i for i, s in enumerate(DEFAULT_STAGES)}
 
-def _job_to_status(job: ReconstructionJob) -> JobStatus:
+
+def _parse_dt(value) -> Optional[datetime]:
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def _rows_to_status(job_row: dict, stage_rows: list[dict]) -> JobStatus:
+    ordered = sorted(stage_rows, key=lambda r: _STAGE_ORDER.get(r["stage_id"], 999))
     return JobStatus(
-        project_id=job.project_id,
+        project_id=job_row["project_id"],
         stages=[
             StageInfo(
-                id=s.stage_id,
-                name=s.name,
-                status=StageStatus(s.status),
-                progress=s.progress,
-                stats=s.stats or {},
-                error=s.error,
+                id=s["stage_id"],
+                name=s["name"],
+                status=StageStatus(s["status"]),
+                progress=s["progress"],
+                stats=s.get("stats") or {},
+                error=s.get("error"),
             )
-            for s in job.stages
+            for s in ordered
         ],
-        started_at=job.started_at,
-        completed_at=job.completed_at,
-        splat_ready=job.splat_ready,
+        started_at=_parse_dt(job_row.get("started_at")),
+        completed_at=_parse_dt(job_row.get("completed_at")),
+        splat_ready=job_row["splat_ready"],
     )
 
 
-async def create_job(db: AsyncSession, project_id: str) -> JobStatus:
-    job = ReconstructionJob(
-        project_id=project_id,
-        started_at=datetime.now(timezone.utc),
-    )
-    for s in DEFAULT_STAGES:
-        job.stages.append(
-            ReconstructionStage(
-                stage_id=s.id,
-                name=s.name,
-                status=s.status.value,
-                progress=s.progress,
-                stats=s.stats,
-            )
-        )
-    db.add(job)
-    await db.commit()
-    await db.refresh(job, ["stages"])
-    logger.info("Created reconstruction job for project %s", project_id)
-    return _job_to_status(job)
-
-
-async def get_job(db: AsyncSession, project_id: str) -> Optional[JobStatus]:
-    result = await db.execute(
-        select(ReconstructionJob)
-        .where(ReconstructionJob.project_id == project_id)
-        .options(selectinload(ReconstructionJob.stages))
-        .order_by(ReconstructionJob.id.desc())
+async def _latest_job(sb: AsyncClient, project_id: str) -> Optional[dict]:
+    resp = (
+        await sb.table("reconstruction_jobs")
+        .select("*")
+        .eq("project_id", project_id)
+        .order("id", desc=True)
         .limit(1)
+        .execute()
     )
-    job = result.scalar_one_or_none()
-    if not job:
+    return resp.data[0] if resp.data else None
+
+
+async def _fetch_stages(sb: AsyncClient, job_id: int) -> list[dict]:
+    resp = (
+        await sb.table("reconstruction_stages")
+        .select("*")
+        .eq("job_id", job_id)
+        .execute()
+    )
+    return resp.data
+
+
+async def create_job(sb: AsyncClient, project_id: str) -> JobStatus:
+    job_resp = (
+        await sb.table("reconstruction_jobs")
+        .insert({
+            "project_id": project_id,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "splat_ready": False,
+        })
+        .execute()
+    )
+    job_row = job_resp.data[0]
+    stage_rows = [
+        {
+            "job_id": job_row["id"],
+            "stage_id": s.id,
+            "name": s.name,
+            "status": s.status.value,
+            "progress": s.progress,
+            "stats": s.stats,
+        }
+        for s in DEFAULT_STAGES
+    ]
+    stages_resp = await sb.table("reconstruction_stages").insert(stage_rows).execute()
+    logger.info("Created reconstruction job for project %s", project_id)
+    return _rows_to_status(job_row, stages_resp.data)
+
+
+async def get_job(sb: AsyncClient, project_id: str) -> Optional[JobStatus]:
+    job_row = await _latest_job(sb, project_id)
+    if not job_row:
         return None
-    return _job_to_status(job)
+    stage_rows = await _fetch_stages(sb, job_row["id"])
+    return _rows_to_status(job_row, stage_rows)
 
 
 async def update_stage(
-    db: AsyncSession,
+    sb: AsyncClient,
     project_id: str,
     stage_id: str,
     *,
@@ -120,48 +144,69 @@ async def update_stage(
     stats: Optional[dict[str, str]] = None,
     error: Optional[str] = None,
 ) -> None:
-    result = await db.execute(
-        select(ReconstructionJob)
-        .where(ReconstructionJob.project_id == project_id)
-        .options(selectinload(ReconstructionJob.stages))
-        .order_by(ReconstructionJob.id.desc())
-        .limit(1)
-    )
-    job = result.scalar_one_or_none()
-    if not job:
+    job_row = await _latest_job(sb, project_id)
+    if not job_row:
         return
-    for stage in job.stages:
-        if stage.stage_id == stage_id:
-            if status is not None:
-                stage.status = status.value
-            if progress is not None:
-                stage.progress = progress
-            if stats is not None:
-                current = stage.stats or {}
-                current.update(stats)
-                stage.stats = current
-            if error is not None:
-                stage.error = error
-                stage.status = StageStatus.ERROR.value
-            break
-    await db.commit()
-
-
-async def mark_splat_ready(db: AsyncSession, project_id: str) -> None:
-    result = await db.execute(
-        select(ReconstructionJob)
-        .where(ReconstructionJob.project_id == project_id)
-        .order_by(ReconstructionJob.id.desc())
+    stage_resp = (
+        await sb.table("reconstruction_stages")
+        .select("*")
+        .eq("job_id", job_row["id"])
+        .eq("stage_id", stage_id)
         .limit(1)
+        .execute()
     )
-    job = result.scalar_one_or_none()
-    if job:
-        job.splat_ready = True
-        job.completed_at = datetime.now(timezone.utc)
-        await db.commit()
+    if not stage_resp.data:
+        return
+    stage = stage_resp.data[0]
+    patch: dict = {}
+    if status is not None:
+        patch["status"] = status.value
+    if progress is not None:
+        patch["progress"] = progress
+    if stats is not None:
+        merged = dict(stage.get("stats") or {})
+        merged.update(stats)
+        patch["stats"] = merged
+    if error is not None:
+        patch["error"] = error
+        patch["status"] = StageStatus.ERROR.value
+    if patch:
+        await (
+            sb.table("reconstruction_stages")
+            .update(patch)
+            .eq("id", stage["id"])
+            .execute()
+        )
+
+
+async def mark_splat_ready(sb: AsyncClient, project_id: str) -> None:
+    job_row = await _latest_job(sb, project_id)
+    if not job_row:
+        return
+    await (
+        sb.table("reconstruction_jobs")
+        .update({
+            "splat_ready": True,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", job_row["id"])
+        .execute()
+    )
 
 
 # --- Sync wrappers for background thread usage (colmap, gaussian splatting) ---
+
+
+def _latest_job_sync(sb: Client, project_id: str) -> Optional[dict]:
+    resp = (
+        sb.table("reconstruction_jobs")
+        .select("*")
+        .eq("project_id", project_id)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return resp.data[0] if resp.data else None
 
 
 def update_stage_sync(
@@ -173,44 +218,53 @@ def update_stage_sync(
     stats: Optional[dict[str, str]] = None,
     error: Optional[str] = None,
 ) -> None:
-    with Session(_sync_engine) as session:
-        result = session.execute(
-            select(ReconstructionJob)
-            .where(ReconstructionJob.project_id == project_id)
-            .options(selectinload(ReconstructionJob.stages))
-            .order_by(ReconstructionJob.id.desc())
-            .limit(1)
+    sb = get_supabase_sync()
+    job_row = _latest_job_sync(sb, project_id)
+    if not job_row:
+        return
+    stage_resp = (
+        sb.table("reconstruction_stages")
+        .select("*")
+        .eq("job_id", job_row["id"])
+        .eq("stage_id", stage_id)
+        .limit(1)
+        .execute()
+    )
+    if not stage_resp.data:
+        return
+    stage = stage_resp.data[0]
+    patch: dict = {}
+    if status is not None:
+        patch["status"] = status.value
+    if progress is not None:
+        patch["progress"] = progress
+    if stats is not None:
+        merged = dict(stage.get("stats") or {})
+        merged.update(stats)
+        patch["stats"] = merged
+    if error is not None:
+        patch["error"] = error
+        patch["status"] = StageStatus.ERROR.value
+    if patch:
+        (
+            sb.table("reconstruction_stages")
+            .update(patch)
+            .eq("id", stage["id"])
+            .execute()
         )
-        job = result.scalar_one_or_none()
-        if not job:
-            return
-        for stage in job.stages:
-            if stage.stage_id == stage_id:
-                if status is not None:
-                    stage.status = status.value
-                if progress is not None:
-                    stage.progress = progress
-                if stats is not None:
-                    current = stage.stats or {}
-                    current.update(stats)
-                    stage.stats = current
-                if error is not None:
-                    stage.error = error
-                    stage.status = StageStatus.ERROR.value
-                break
-        session.commit()
 
 
 def mark_splat_ready_sync(project_id: str) -> None:
-    with Session(_sync_engine) as session:
-        result = session.execute(
-            select(ReconstructionJob)
-            .where(ReconstructionJob.project_id == project_id)
-            .order_by(ReconstructionJob.id.desc())
-            .limit(1)
-        )
-        job = result.scalar_one_or_none()
-        if job:
-            job.splat_ready = True
-            job.completed_at = datetime.now(timezone.utc)
-            session.commit()
+    sb = get_supabase_sync()
+    job_row = _latest_job_sync(sb, project_id)
+    if not job_row:
+        return
+    (
+        sb.table("reconstruction_jobs")
+        .update({
+            "splat_ready": True,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", job_row["id"])
+        .execute()
+    )
