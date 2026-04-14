@@ -11,6 +11,7 @@ import ChatDrawer from "./components/ChatDrawer";
 import BuildingScene from "./components/BuildingScene";
 import SplatViewer from "./components/SplatViewer";
 import BackgroundControls from "./components/BackgroundControls";
+import PascalDesignEditor from "./components/PascalDesignEditor";
 import { useProjectStore, type WorkflowStep } from "./store/projectStore";
 import { useProjectRestore } from "./hooks/useProjectRestore";
 
@@ -19,8 +20,11 @@ export default function App() {
   const viewportMode = useProjectStore((s) => s.viewportMode);
   const splatUrl = useProjectStore((s) => s.splatUrl);
   const backgroundImageUrl = useProjectStore((s) => s.backgroundImageUrl);
+  const buildingSpec = useProjectStore((s) => s.buildingSpec);
   const setStep = useProjectStore((s) => s.setStep);
   const completeStep = useProjectStore((s) => s.completeStep);
+
+  const showPascalEditor = currentStep === "design" && !!buildingSpec;
 
   // Restore project state from localStorage + backend on refresh
   useProjectRestore();
@@ -53,9 +57,10 @@ export default function App() {
               backgroundPosition: "center",
             } : undefined}
           >
-            <ViewportTabs />
-            <ViewportToolbar />
-            <Canvas
+            {!showPascalEditor && <ViewportTabs />}
+            {!showPascalEditor && <ViewportToolbar />}
+            {showPascalEditor && <PascalDesignEditor />}
+            {!showPascalEditor && <Canvas
               camera={{ position: [20, 15, 20], fov: 60 }}
               gl={{ alpha: true }}
               style={{ background: "transparent" }}
@@ -75,7 +80,7 @@ export default function App() {
               <SplatViewer />
               <BuildingScene wireframe={viewportMode === "wireframe"} />
               <OrbitControls makeDefault />
-            </Canvas>
+            </Canvas>}
             {currentStep === "upload" && !backgroundImageUrl && (
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-2">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground/30">

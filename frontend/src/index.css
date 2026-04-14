@@ -3,6 +3,8 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
+@source "../node_modules/@pascal-app/editor/src";
+
 @custom-variant dark (&:is(.dark *));
 
 :root {

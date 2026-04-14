@@ -71,7 +71,7 @@ async def chat_with_architect(messages: list[dict]) -> dict:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
     response = client.messages.create(
-        model="claude-sonnet-4-6-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=1024,
         system=SYSTEM_PROMPT,
         messages=_build_messages(messages),

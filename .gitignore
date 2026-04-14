@@ -31,8 +31,21 @@ Thumbs.db
 uploads/
 data/raw/
 data/processed/
+backend/data/raw/
+backend/data/processed/
+backend/data/icarus.db
+backend/data/textures/
 *.ply
 *.splat
+
+# Pascal editor vendored assets (fetched via scripts/fetch-pascal-assets.sh)
+frontend/public/pascal/
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Claude Code project skills (not project config)
+.claude/skills/
 
 # ML models
 models/weights/

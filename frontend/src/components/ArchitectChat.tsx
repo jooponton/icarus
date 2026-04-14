@@ -94,7 +94,7 @@ export default function ArchitectChat() {
         </p>
       </div>
 
-      <ScrollArea className="flex-1 -mx-1 px-1">
+      <ScrollArea className="flex-1 min-h-0 -mx-1 px-1">
         <div className="flex flex-col gap-2 pb-2">
           {displayMessages.map((m, i) => (
             <div
