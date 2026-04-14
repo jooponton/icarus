@@ -18,6 +18,7 @@ export default defineConfig({
       "@pascal-app/core",
       "@pascal-app/viewer",
       "@pascal-app/editor",
+      "howler",
     ],
   },
   define: {
