@@ -152,12 +152,8 @@ export type ExportPreviewTab =
   | "tiles"
   | "streaming"
   | "design";
-export type FileBrowserFilter =
-  | "all"
-  | "video"
-  | "raw"
-  | "gps"
-  | "low-quality";
+export type FileBrowserFilter = "all" | "image" | "video" | "raw";
+export type FileBrowserSort = "newest" | "oldest" | "name" | "size";
 
 // --- State ---
 
@@ -192,11 +188,11 @@ interface ProjectState {
   // File browser
   fileBrowserOpen: boolean;
   fileBrowserFilter: FileBrowserFilter;
-  fileBrowserSort: string;
+  fileBrowserSort: FileBrowserSort;
   selectedBrowserFiles: Set<string>;
   setFileBrowserOpen: (v: boolean) => void;
   setFileBrowserFilter: (f: FileBrowserFilter) => void;
-  setFileBrowserSort: (s: string) => void;
+  setFileBrowserSort: (s: FileBrowserSort) => void;
   toggleBrowserFileSelection: (id: string) => void;
   clearBrowserSelection: () => void;
 
@@ -416,7 +412,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   // Camera pose
   cameraPose: null,
   cameraPoseLoading: false,
-  orbitLocked: true,
+  orbitLocked: false,
   setCameraPose: (p) => set({ cameraPose: p }),
   setCameraPoseLoading: (v) => set({ cameraPoseLoading: v }),
   setOrbitLocked: (v) => set({ orbitLocked: v }),

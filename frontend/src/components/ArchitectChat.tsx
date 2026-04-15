@@ -31,23 +31,39 @@ export default function ArchitectChat() {
         body: JSON.stringify({ project_id: projectId, messages: msgs }),
         signal,
       });
+      if (!res.ok) {
+        let detail = `${res.status} ${res.statusText}`;
+        try {
+          const body = await res.json();
+          if (body?.detail) detail = String(body.detail);
+        } catch { /* non-JSON body */ }
+        console.error("[architect] request failed:", detail);
+        setMessages([
+          ...msgs,
+          {
+            role: "assistant",
+            content: "Something went wrong on my end. Let's try that again.",
+          },
+        ]);
+        return;
+      }
       const data = await res.json();
-      const updated: Message[] = [
+      setMessages([
         ...msgs,
         { role: "assistant", content: data.reply },
-      ];
-      setMessages(updated);
+      ]);
 
       if (data.spec_complete && data.spec) {
         setBuildingSpec(data.spec);
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
+      console.error("[architect] network error:", err);
       setMessages([
         ...msgs,
         {
           role: "assistant",
-          content: "Connection error. Is the backend running?",
+          content: "I lost the connection. Check your network and try again.",
         },
       ]);
     } finally {

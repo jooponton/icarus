@@ -87,20 +87,31 @@ def _build_messages(history: list[dict]) -> list[dict]:
     return messages
 
 
-def _extract_spec(text: str) -> BuildingSpec | None:
-    """Try to extract a BuildingSpec JSON from the assistant's response."""
-    start = text.find("```json")
-    if start == -1:
-        return None
-    start = text.index("\n", start) + 1
-    end = text.find("```", start)
-    if end == -1:
-        return None
+def _extract_spec(text: str) -> tuple[BuildingSpec | None, str]:
+    """Extract a BuildingSpec JSON from the assistant's response.
+
+    Returns (spec, cleaned_reply) where cleaned_reply has the json fence
+    stripped so the raw JSON doesn't leak into the chat UI.
+    """
+    fence_start = text.find("```json")
+    if fence_start == -1:
+        return None, text
+    body_start = text.index("\n", fence_start) + 1
+    fence_end = text.find("```", body_start)
+    if fence_end == -1:
+        return None, text
     try:
-        data = json.loads(text[start:end])
-        return BuildingSpec(**data)
+        data = json.loads(text[body_start:fence_end])
+        spec = BuildingSpec(**data)
     except (json.JSONDecodeError, ValueError):
-        return None
+        return None, text
+
+    before = text[:fence_start].rstrip()
+    after = text[fence_end + 3 :].lstrip()
+    cleaned = (before + "\n\n" + after).strip()
+    if not cleaned:
+        cleaned = "Spec is ready. You can refine it in the Design panel."
+    return spec, cleaned
 
 
 async def chat_with_architect(messages: list[dict]) -> dict:
@@ -109,16 +120,16 @@ async def chat_with_architect(messages: list[dict]) -> dict:
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=400,
+        max_tokens=4000,
         system=SYSTEM_PROMPT,
         messages=_build_messages(messages),
     )
 
-    reply = _strip_emojis(response.content[0].text)
-    spec = _extract_spec(reply)
+    raw_reply = _strip_emojis(response.content[0].text)
+    spec, cleaned_reply = _extract_spec(raw_reply)
 
     result = {
-        "reply": reply,
+        "reply": cleaned_reply,
         "spec_complete": spec is not None,
     }
     if spec:
