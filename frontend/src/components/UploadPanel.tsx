@@ -167,9 +167,14 @@ export default function UploadPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold">Upload Footage</h2>
+          <h2
+            className="text-[17px] tracking-tight text-foreground"
+            style={{ fontFamily: "'Instrument Serif', serif" }}
+          >
+            Upload Footage
+          </h2>
           <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-            Select drone video or images of your site. RAW formats supported.
+            Drop drone video or site photos. RAW formats supported.
           </p>
         </div>
         {uploadedFiles.length > 0 && <StatusBadge variant="ready">Ready</StatusBadge>}

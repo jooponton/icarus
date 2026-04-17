@@ -104,7 +104,7 @@ export default function ArchitectChat() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div>
-        <h2 className="text-sm font-semibold">Architect AI</h2>
+        <h2 className="text-[17px] tracking-tight text-foreground" style={{ fontFamily: "'Instrument Serif', serif" }}>Architect</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           Describe your vision and I'll help define the specs
         </p>

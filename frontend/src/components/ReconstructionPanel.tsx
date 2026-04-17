@@ -198,7 +198,7 @@ export default function ReconstructionPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold">Reconstruction Pipeline</h2>
+          <h2 className="text-[17px] tracking-tight text-foreground" style={{ fontFamily: "'Instrument Serif', serif" }}>Reconstruction</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             COLMAP + 3D Gaussian Splatting
           </p>

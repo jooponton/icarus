@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api import upload, projects, architect, reconstruct, generate, pose
+from app.api import upload, projects, architect, reconstruct, generate, pose, building_render, building_mesh, building_program
 from app.core.config import settings
 
 
@@ -21,6 +21,9 @@ app.include_router(architect.router, prefix="/api")
 app.include_router(reconstruct.router, prefix="/api")
 app.include_router(generate.router, prefix="/api")
 app.include_router(pose.router, prefix="/api")
+app.include_router(building_render.router, prefix="/api")
+app.include_router(building_mesh.router, prefix="/api")
+app.include_router(building_program.router, prefix="/api")
 
 
 # Serve uploaded files (images for background compositing)

@@ -4,7 +4,6 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { useProjectStore } from "../store/projectStore";
-import { useTextureGeneration } from "../hooks/useTextureGeneration";
 import StatusBadge from "./StatusBadge";
 
 export default function DesignPanel() {
@@ -15,8 +14,6 @@ export default function DesignPanel() {
   const setValidationResult = useProjectStore((s) => s.setValidationResult);
   const textureStatus = useProjectStore((s) => s.textureStatus);
   const setChatDrawerOpen = useProjectStore((s) => s.setChatDrawerOpen);
-
-  useTextureGeneration();
 
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const abortRef = useRef<AbortController>(undefined);
@@ -61,7 +58,7 @@ export default function DesignPanel() {
     <div className="space-y-5 pb-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-sm font-semibold">Design</h2>
+          <h2 className="text-[17px] tracking-tight text-foreground" style={{ fontFamily: "'Instrument Serif', serif" }}>Design</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             {buildingSpec
               ? "Shape the building in the editor. Walls, slabs, items, roofs."

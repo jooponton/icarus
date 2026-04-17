@@ -1,66 +1,68 @@
+"""Gemini 2.5 Flash Image prompts for per-surface PBR albedo tiles.
+
+Returns a single prose prompt per surface — Gemini doesn't use negative prompts.
+We lean hard on the framing ("flat orthographic top-down square tile, edge-to-edge
+seamless, no perspective, no lighting") because Gemini will otherwise produce a
+3D render of the material rather than a tileable swatch.
+"""
+
 from app.schemas.project import BuildingSpec
 
 MATERIAL_DESCRIPTORS: dict[str, str] = {
-    "concrete": "raw concrete, exposed aggregate, cement grey, brutalist surface",
-    "brick": "red brick masonry, mortar joints, clay brick, running bond pattern",
-    "glass": "blue-green tinted glass, reflective surface, curtain wall panels",
-    "steel": "brushed steel panels, metallic sheen, corrugated steel cladding",
-    "wood": "natural wood planks, timber grain, cedar siding, warm tones",
-    "stone": "natural stone masonry, limestone blocks, quarried stone, rough hewn",
+    "concrete": "raw board-formed concrete with horizontal timber-grain impressions, slight aggregate flecks, soft cement grey",
+    "brick": "running-bond red clay brick with crisp recessed mortar joints, individual brick variation, weathered patina",
+    "glass": "blue-green tinted curtain-wall glass with thin black aluminum mullion grid, faint reflections",
+    "steel": "brushed stainless steel panels with hairline directional grain, riveted seams between panels",
+    "wood": "vertical cedar plank siding with visible grain, knots, warm natural tone, fine shadow lines between boards",
+    "stone": "ashlar limestone masonry with tight tooled joints, subtle quarry striations, cream-grey tone",
 }
 
 STYLE_MODIFIERS: dict[str, str] = {
-    "modern": "clean minimal contemporary architecture, sleek finish",
-    "traditional": "classical heritage architecture, aged patina",
-    "industrial": "warehouse factory utilitarian, weathered surface",
-    "minimalist": "ultra clean pristine surface, uniform finish",
-    "brutalist": "raw concrete monolithic, board-formed texture",
-    "colonial": "colonial era symmetrical heritage, painted finish",
-    "art deco": "art deco geometric ornament 1930s, decorative surface",
-    "mediterranean": "mediterranean stucco warm tones, textured plaster",
-    "contemporary": "contemporary refined surface, precise finish",
-    "organic": "natural organic flowing forms, earthy texture",
+    "modern": "clean contemporary architecture, precise machined finish",
+    "traditional": "classical heritage architecture with aged patina",
+    "industrial": "warehouse utilitarian with weathered surface and mild oxidation",
+    "minimalist": "ultra-clean uniform pristine surface",
+    "brutalist": "raw monolithic concrete with board-formed timber-grain texture",
+    "colonial": "colonial-era painted finish with subtle brush variation",
+    "art deco": "art deco geometric ornament from the 1930s, decorative low-relief surface",
+    "mediterranean": "mediterranean stucco in warm tones, hand-troweled plaster texture",
+    "contemporary": "contemporary refined surface with crisp finish",
+    "organic": "natural organic earthy texture",
 }
 
 ROOF_MATERIALS: dict[str, dict[str, str]] = {
     "gable": {
-        "brick": "terracotta clay roof tiles, overlapping",
-        "wood": "cedar wood shingles, natural grain",
-        "stone": "slate roof tiles, dark grey",
-        "default": "asphalt shingles, charcoal grey",
+        "brick": "overlapping terracotta clay roof tiles in warm orange-red, individual tile variation",
+        "wood": "weathered cedar wood shingles in staggered courses, silver-grey patina",
+        "stone": "natural slate roof tiles in dark grey with size variation",
+        "default": "asphalt architectural shingles in charcoal grey",
     },
     "hip": {
-        "brick": "terracotta clay roof tiles, overlapping",
-        "wood": "cedar wood shingles, natural grain",
-        "default": "concrete roof tiles, neutral grey",
+        "brick": "overlapping terracotta clay roof tiles, warm orange-red",
+        "wood": "cedar shingles in staggered courses, natural grain",
+        "default": "concrete roof tiles in neutral grey, flat profile",
     },
     "flat": {
-        "default": "bitumen roofing membrane, dark grey, smooth",
+        "default": "smooth bitumen roofing membrane in dark charcoal with subtle texture",
     },
     "shed": {
-        "default": "standing seam metal roofing, corrugated",
+        "default": "standing-seam metal roofing in zinc grey, vertical seams",
     },
     "mansard": {
-        "default": "slate roof tiles, dark charcoal, French mansard",
+        "default": "natural slate roof tiles in dark charcoal, French mansard pattern",
     },
     "butterfly": {
-        "default": "standing seam metal roofing, zinc finish",
+        "default": "standing-seam metal roofing in zinc finish, vertical seams",
     },
 }
 
 DOOR_MATERIALS: dict[str, str] = {
-    "residential": "solid wood door, paneled, stained oak",
-    "commercial": "glass and aluminum commercial door, modern entrance",
-    "industrial": "steel industrial door, heavy gauge metal, riveted",
-    "institutional": "heavy wooden double doors, brass hardware",
-    "mixed-use": "glass storefront door, aluminum frame",
+    "residential": "solid stained oak door with raised panels, brass hardware",
+    "commercial": "modern aluminum-framed glass commercial door",
+    "industrial": "heavy gauge riveted steel industrial door, dark grey",
+    "institutional": "heavy double wood doors with brass hardware, dark mahogany",
+    "mixed-use": "aluminum-framed glass storefront door",
 }
-
-NEGATIVE_PROMPT = (
-    "text, watermark, logo, humans, people, sky, perspective, "
-    "3d render, gradient, uneven lighting, seams visible, blurry, "
-    "low quality, cartoon, illustration, painting"
-)
 
 
 def _get_roof_material(roof_style: str, material: str) -> str:
@@ -68,77 +70,57 @@ def _get_roof_material(roof_style: str, material: str) -> str:
     return roof_map.get(material.lower(), roof_map.get("default", "roofing material"))
 
 
-def _expand_material(raw: str | None, fallback_key: str, fallback_material: str) -> str:
-    """Turn a user-supplied material string into a rich SD prompt fragment.
-    If the user gave freeform text, keep it verbatim and append surface hints.
-    If they used a known keyword, look up the canonical descriptor."""
+def _expand_material(raw: str | None, fallback_material: str) -> str:
+    """User-supplied material → rich descriptor. Freeform text is kept verbatim."""
     if raw and raw.strip():
         key = raw.strip().lower()
-        # Known keyword → canonical rich descriptor
         if key in MATERIAL_DESCRIPTORS:
             return MATERIAL_DESCRIPTORS[key]
-        # Freeform — keep the user's words, let diffusion interpret them
         return raw.strip()
-    # Fall back to the spec's primary material
     return MATERIAL_DESCRIPTORS.get(
-        fallback_material.lower(), fallback_material or fallback_key
+        fallback_material.lower(), fallback_material or "architectural surface"
     )
 
 
-def build_prompts(spec: BuildingSpec) -> dict[str, tuple[str, str]]:
-    """Convert a BuildingSpec into Stable Diffusion prompts for each texture part.
+_FRAMING = (
+    "Flat top-down orthographic square tile, edge-to-edge seamlessly tileable, "
+    "even diffuse studio lighting with no shadows or highlights baked in, "
+    "no perspective, no vanishing points, no curvature. The texture fills the "
+    "entire frame and reads as a swatch a CG artist would use as an albedo map. "
+    "No text, watermarks, people, vehicles, sky, ground, or border. "
+    "Ultra-sharp focus, high resolution, photographic detail."
+)
 
-    Per-surface overrides on `spec.surface_materials` win over the primary
-    `spec.material`, and both accept freeform text ("weathered corten steel
-    with rust patina") — not just the old six keywords.
 
-    Returns: {part_id: (positive_prompt, negative_prompt)}
-    """
+def _prompt(subject: str, style_mod: str) -> str:
+    return (
+        f"Photoreal seamless PBR albedo texture of {subject}. {style_mod}. "
+        f"{_FRAMING}"
+    )
+
+
+def build_prompts(spec: BuildingSpec) -> dict[str, str]:
+    """Per-surface Gemini prompts."""
     surface = spec.surface_materials
-    wall_desc = _expand_material(surface.wall, "wall", spec.material)
+    wall_desc = _expand_material(surface.wall, spec.material)
     roof_desc = _expand_material(
         surface.roof,
-        "roof",
         _get_roof_material(spec.roof_style, spec.material),
     )
     door_desc = _expand_material(
         surface.door,
-        "door",
-        DOOR_MATERIALS.get(spec.building_type.lower(), "solid door, paneled"),
+        DOOR_MATERIALS.get(spec.building_type.lower(), "solid paneled door"),
     )
-    trim_desc = _expand_material(surface.trim, "trim", "painted wood trim, window frame moulding")
-
-    style_mod = STYLE_MODIFIERS.get(
-        spec.style.lower(), "architectural surface"
+    trim_desc = _expand_material(
+        surface.trim,
+        "painted wood window-frame moulding in warm white",
     )
 
-    base_suffix = (
-        "photorealistic, even diffuse lighting, no shadows, no highlights, "
-        "orthographic, square tile, high resolution, physically based material, "
-        "surface detail visible"
-    )
+    style_mod = STYLE_MODIFIERS.get(spec.style.lower(), "architectural surface")
 
-    prompts: dict[str, tuple[str, str]] = {
-        "wall": (
-            f"seamless tileable PBR texture of {wall_desc}, {style_mod}, "
-            f"architectural wall surface, {base_suffix}",
-            NEGATIVE_PROMPT,
-        ),
-        "roof": (
-            f"seamless tileable PBR texture of {roof_desc}, "
-            f"roofing material, top-down view, {base_suffix}",
-            NEGATIVE_PROMPT,
-        ),
-        "door": (
-            f"seamless tileable PBR texture of {door_desc}, "
-            f"{style_mod}, door surface, {base_suffix}",
-            NEGATIVE_PROMPT,
-        ),
-        "trim": (
-            f"seamless tileable PBR texture of {trim_desc}, "
-            f"{style_mod}, {base_suffix}",
-            NEGATIVE_PROMPT,
-        ),
+    return {
+        "wall": _prompt(f"an architectural wall surface — {wall_desc}", style_mod),
+        "roof": _prompt(f"a roofing surface — {roof_desc}", style_mod),
+        "door": _prompt(f"a door surface — {door_desc}", style_mod),
+        "trim": _prompt(f"architectural trim — {trim_desc}", style_mod),
     }
-
-    return prompts

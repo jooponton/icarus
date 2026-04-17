@@ -10,6 +10,7 @@ import {
   WORKFLOW_STEPS,
   type WorkflowStep,
 } from "../store/projectStore";
+import AtriaMark from "./AtriaMark";
 
 export default function Navbar() {
   const currentStep = useProjectStore((s) => s.currentStep);
@@ -29,11 +30,12 @@ export default function Navbar() {
   return (
     <nav className="flex h-[52px] shrink-0 items-center border-b border-border bg-card px-5">
       <div className="flex items-center gap-2.5 mr-8">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-primary to-purple-600 text-sm font-bold text-primary-foreground">
-          I
-        </div>
-        <span className="text-[15px] font-semibold tracking-tight">
-          Icarus
+        <AtriaMark size={28} />
+        <span
+          className="text-[20px] leading-none tracking-tight text-foreground"
+          style={{ fontFamily: "'Instrument Serif', serif" }}
+        >
+          Atria
         </span>
       </div>
 

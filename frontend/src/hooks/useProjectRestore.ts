@@ -32,7 +32,16 @@ export function useProjectRestore() {
     let cancelled = false;
 
     fetch(`/api/projects/${projectId}`)
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => {
+        if (r.status === 404) {
+          // Project was deleted server-side — drop the stale id so the
+          // user lands on a clean slate instead of a half-restored state.
+          localStorage.removeItem(STORAGE_KEY);
+          setProjectMeta({ projectId: "" });
+          return null;
+        }
+        return r.ok ? r.json() : null;
+      })
       .then((data) => {
         if (cancelled || !data) return;
 

@@ -2,44 +2,52 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
 
 @source "../node_modules/@pascal-app/editor/src";
 
 @custom-variant dark (&:is(.dark *));
 
+/* Atria brand kit
+ * - Obsidian (#0a0a0a) — backgrounds
+ * - Amber (#f59e0b)   — primary accent
+ * - Instrument Serif  — headings, hero copy
+ * - Geist Variable    — UI body
+ */
 :root {
-  --background: oklch(0.145 0 0);
+  --background: oklch(0.13 0 0);              /* Obsidian #0a0a0a */
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.17 0 0);
+  --card: oklch(0.16 0 0);
   --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.17 0 0);
+  --popover: oklch(0.16 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.62 0.18 264);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.22 0.005 280);
+  --primary: oklch(0.78 0.165 70);            /* Amber #f59e0b */
+  --primary-foreground: oklch(0.18 0.02 60);
+  --secondary: oklch(0.22 0.005 60);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.22 0.005 280);
-  --muted-foreground: oklch(0.6 0 0);
-  --accent: oklch(0.22 0.005 280);
-  --accent-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.2 0.005 60);
+  --muted-foreground: oklch(0.62 0.01 60);
+  --accent: oklch(0.78 0.165 70);             /* Amber */
+  --accent-foreground: oklch(0.18 0.02 60);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
+  --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.62 0.18 264);
-  --chart-1: oklch(0.62 0.18 264);
+  --ring: oklch(0.78 0.165 70);               /* Amber */
+  --chart-1: oklch(0.78 0.165 70);
   --chart-2: oklch(0.55 0.15 160);
   --chart-3: oklch(0.65 0.18 50);
   --chart-4: oklch(0.6 0.2 310);
   --chart-5: oklch(0.7 0.15 80);
   --radius: 0.625rem;
-  --sidebar: oklch(0.16 0 0);
+  --sidebar: oklch(0.13 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.62 0.18 264);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.22 0.005 280);
+  --sidebar-primary: oklch(0.78 0.165 70);
+  --sidebar-primary-foreground: oklch(0.18 0.02 60);
+  --sidebar-accent: oklch(0.2 0.005 60);
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.62 0.18 264);
+  --sidebar-border: oklch(1 0 0 / 9%);
+  --sidebar-ring: oklch(0.78 0.165 70);
 }
 
 html,
@@ -65,7 +73,8 @@ body,
 }
 
 @theme inline {
-  --font-heading: var(--font-sans);
+  --font-heading: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
   --font-sans: 'Geist Variable', sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);

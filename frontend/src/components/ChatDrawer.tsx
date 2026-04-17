@@ -17,7 +17,12 @@ export default function ChatDrawer() {
       {/* Drawer */}
       <div className="relative ml-auto flex h-full w-[380px] flex-col border-l border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="text-sm font-semibold">Architect AI</h2>
+          <h2
+            className="text-[17px] tracking-tight text-foreground"
+            style={{ fontFamily: "'Instrument Serif', serif" }}
+          >
+            Architect
+          </h2>
           <button
             onClick={() => setOpen(false)}
             className="text-muted-foreground hover:text-foreground"
