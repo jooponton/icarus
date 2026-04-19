@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { apiFetch } from "../lib/api";
 import { useProjectStore } from "../store/projectStore";
 
 interface Message {
@@ -25,7 +26,7 @@ export default function ArchitectChat() {
   const sendMessages = useCallback(async (msgs: Message[], signal?: AbortSignal) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/architect/chat", {
+      const res = await apiFetch("/api/architect/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ project_id: projectId, messages: msgs }),
@@ -104,7 +105,7 @@ export default function ArchitectChat() {
   return (
     <div className="flex h-full flex-col gap-3">
       <div>
-        <h2 className="text-[17px] tracking-tight text-foreground" style={{ fontFamily: "'Instrument Serif', serif" }}>Architect</h2>
+        <h2 className="text-[17px] font-semibold tracking-tight text-foreground">Architect</h2>
         <p className="text-xs text-muted-foreground mt-0.5">
           Describe your vision and I'll help define the specs
         </p>

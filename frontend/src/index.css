@@ -12,8 +12,8 @@
 /* Atria brand kit
  * - Obsidian (#0a0a0a) — backgrounds
  * - Amber (#f59e0b)   — primary accent
- * - Instrument Serif  — headings, hero copy
- * - Geist Variable    — UI body
+ * - Instrument Serif  — logo wordmark only
+ * - Geist Variable    — everything else
  */
 :root {
   --background: oklch(0.13 0 0);              /* Obsidian #0a0a0a */
@@ -73,8 +73,8 @@ body,
 }
 
 @theme inline {
-  --font-heading: 'Instrument Serif', ui-serif, Georgia, serif;
-  --font-serif: 'Instrument Serif', ui-serif, Georgia, serif;
+  --font-heading: 'Geist Variable', sans-serif;
+  --font-serif: 'Geist Variable', sans-serif;
   --font-sans: 'Geist Variable', sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -126,4 +126,25 @@ body,
   html {
     @apply font-sans;
   }
+}
+
+/* Subtle SVG grain overlay — adopted from Icarus workspace design reference.
+ * Apply to any positioned container; the ::before layer is ignore-hit. */
+.grain {
+  position: relative;
+}
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="3" stitchTiles="stitch"/></filter><rect width="160" height="160" filter="url(%23n)" opacity=".18"/></svg>');
+  mix-blend-mode: overlay;
+  opacity: 0.25;
+  z-index: 1;
+}
+
+@keyframes grid-float {
+  0% { transform: perspective(900px) rotateX(70deg) translateY(0); }
+  100% { transform: perspective(900px) rotateX(70deg) translateY(14px); }
 }

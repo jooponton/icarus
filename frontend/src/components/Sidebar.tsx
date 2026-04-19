@@ -13,7 +13,7 @@ export default function Sidebar() {
   const buildingSpec = useProjectStore((s) => s.buildingSpec);
 
   return (
-    <aside className="flex w-[380px] flex-col border-r border-border bg-card">
+    <aside className="flex w-[360px] shrink-0 flex-col overflow-hidden rounded-2xl border border-border bg-card">
       <ScrollArea className="flex-1 overflow-hidden">
         <div className="p-5">
           {currentStep === "upload" && <UploadPanel />}

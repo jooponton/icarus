@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
 import ViewportToolbar from "./components/ViewportToolbar";
-import ViewportTabs from "./components/ViewportTabs";
 import FileBrowser from "./components/FileBrowser";
 import ChatDrawer from "./components/ChatDrawer";
 import BuildingScene from "./components/BuildingScene";
@@ -15,10 +14,13 @@ import PascalDesignEditor from "./components/PascalDesignEditor";
 import CameraRig from "./components/CameraRig";
 import ScenePostFX from "./components/ScenePostFX";
 import BuildingTextureOverlay from "./components/BuildingTextureOverlay";
+import ViewportEmptyState from "./components/ViewportEmptyState";
+import ViewportPipelineBar from "./components/ViewportPipelineBar";
 import { useProjectStore, type WorkflowStep } from "./store/projectStore";
 import { useProjectRestore } from "./hooks/useProjectRestore";
 import { useCameraPose } from "./hooks/useCameraPose";
 import { useTextureGeneration } from "./hooks/useTextureGeneration";
+import { useBackgroundDisplayUrl } from "./hooks/useBackgroundDisplayUrl";
 
 export default function App() {
   const currentStep = useProjectStore((s) => s.currentStep);
@@ -39,6 +41,9 @@ export default function App() {
   useCameraPose();
   // Kick off PBR texture generation as soon as a spec exists; survives nav.
   useTextureGeneration();
+  // The backend's `/api/uploads/...` endpoint is now JWT-gated, so pull the
+  // background through a blob: URL instead of letting CSS fetch it directly.
+  const backgroundDisplayUrl = useBackgroundDisplayUrl();
 
   // Dev: ?step=reconstruct to jump to any step
   useEffect(() => {
@@ -56,19 +61,24 @@ export default function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-full w-full flex-col bg-background text-foreground">
+      <div
+        className="flex h-full w-full flex-col bg-background text-foreground"
+        style={{
+          backgroundImage:
+            "radial-gradient(1200px 700px at 50% -20%, color-mix(in oklch, var(--primary) 8%, transparent), transparent 55%), radial-gradient(900px 500px at 10% 10%, rgba(255,255,255,0.04), transparent 60%)",
+        }}
+      >
         <Navbar />
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-1 min-h-0 gap-4 lg:gap-6 p-4 lg:p-6">
           <Sidebar />
           <main
-            className="relative flex-1"
-            style={backgroundImageUrl ? {
-              backgroundImage: `url(${backgroundImageUrl})`,
+            className="relative flex-1 overflow-hidden rounded-2xl border border-border bg-card/30"
+            style={backgroundDisplayUrl ? {
+              backgroundImage: `url("${CSS.escape(backgroundDisplayUrl)}")`,
               backgroundSize: "cover",
               backgroundPosition: "center",
             } : undefined}
           >
-            {!showPascalEditor && <ViewportTabs />}
             {!showPascalEditor && <ViewportToolbar />}
             {showPascalEditor && <PascalDesignEditor />}
             {!showPascalEditor && <Canvas
@@ -100,33 +110,30 @@ export default function App() {
               <ScenePostFX />
               <OrbitControls makeDefault enabled={!orbitLocked} />
             </Canvas>}
-            {currentStep === "upload" && !backgroundImageUrl && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-4">
-                <svg
-                  width="40"
-                  height="40"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-primary/25"
-                >
-                  <path d="M3 21 L12 4 L21 21" />
-                  <path d="M7.5 14 L16.5 14" />
-                </svg>
-                <p
-                  className="text-muted-foreground/50 text-[15px]"
-                  style={{ fontFamily: "'Instrument Serif', serif" }}
-                >
-                  Upload drone footage to begin
-                </p>
-              </div>
+            {currentStep === "upload" && !backgroundImageUrl && !splatUrl && (
+              <ViewportEmptyState />
             )}
+            {!showPascalEditor && <ViewportPipelineBar />}
             <BackgroundControls />
           </main>
         </div>
+
+        <footer className="shrink-0 px-4 pb-4 lg:px-6 lg:pb-5">
+          <div className="flex flex-col gap-2 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+              Encrypted uploads · Local caching · Audit log
+            </div>
+            <div className="flex items-center gap-4">
+              <a href="#" className="hover:text-foreground">Support</a>
+              <a href="#" className="hover:text-foreground">System status</a>
+              <a href="#" className="hover:text-foreground">Privacy</a>
+            </div>
+          </div>
+        </footer>
       </div>
 
       {/* Modals / Drawers */}

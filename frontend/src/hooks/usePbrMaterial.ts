@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import * as THREE from "three";
+import { apiBlobUrl } from "../lib/api";
 import type { PbrChannelUrls } from "../store/projectStore";
 
 export interface PbrMaterialProps {
@@ -55,6 +56,7 @@ export function usePbrMaterial(
 
     const loader = new THREE.TextureLoader();
     let cancelled = false;
+    const blobUrls: string[] = [];
     const loaded: {
       albedo: THREE.Texture | null;
       normal: THREE.Texture | null;
@@ -62,10 +64,28 @@ export function usePbrMaterial(
       ao: THREE.Texture | null;
     } = { albedo: null, normal: null, roughness: null, ao: null };
 
-    const load = (key: keyof typeof loaded, url: string, linear: boolean) =>
-      new Promise<void>((resolve) => {
+    // Texture endpoints are JWT-gated, so fetch each channel through
+    // `apiBlobUrl` (which adds the Authorization header) and feed the
+    // resulting blob: URL to three's loader.
+    const load = async (
+      key: keyof typeof loaded,
+      url: string,
+      linear: boolean,
+    ): Promise<void> => {
+      let blobUrl: string;
+      try {
+        blobUrl = await apiBlobUrl(url);
+      } catch {
+        return;
+      }
+      if (cancelled) {
+        URL.revokeObjectURL(blobUrl);
+        return;
+      }
+      blobUrls.push(blobUrl);
+      return new Promise<void>((resolve) => {
         loader.load(
-          url,
+          blobUrl,
           (tex) => {
             if (cancelled) {
               tex.dispose();
@@ -80,6 +100,7 @@ export function usePbrMaterial(
           () => resolve(),
         );
       });
+    };
 
     Promise.all([
       load("albedo", urls.albedo, false),
@@ -96,6 +117,7 @@ export function usePbrMaterial(
       loaded.normal?.dispose();
       loaded.roughness?.dispose();
       loaded.ao?.dispose();
+      for (const b of blobUrls) URL.revokeObjectURL(b);
     };
   }, [urls, repeatX, repeatY]);
 

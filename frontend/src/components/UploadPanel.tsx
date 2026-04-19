@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { getAuthToken } from "../lib/api";
 import { useProjectStore, type UploadedFile } from "../store/projectStore";
 import StatusBadge from "./StatusBadge";
 
@@ -42,7 +43,6 @@ export default function UploadPanel() {
   const setProjectMeta = useProjectStore((s) => s.setProjectMeta);
   const location = useProjectStore((s) => s.location);
   const targetType = useProjectStore((s) => s.targetType);
-  const setFileBrowserOpen = useProjectStore((s) => s.setFileBrowserOpen);
   const backgroundImageUrl = useProjectStore((s) => s.backgroundImageUrl);
   const setBackgroundImageUrl = useProjectStore((s) => s.setBackgroundImageUrl);
   const [dragOver, setDragOver] = useState(false);
@@ -79,6 +79,10 @@ export default function UploadPanel() {
       }
 
       try {
+        // XHR (not fetch) so the upload progress bar works. That means we have
+        // to inject the Supabase JWT manually — `apiFetch`'s auto-header plumbing
+        // doesn't apply here.
+        const token = await getAuthToken();
         const xhr = new XMLHttpRequest();
         const uploadPromise = new Promise<{ project_id: string; files: string[]; count: number }>((resolve, reject) => {
           xhr.upload.addEventListener("progress", (e) => {
@@ -98,6 +102,7 @@ export default function UploadPanel() {
           });
           xhr.addEventListener("error", () => reject(new Error("Network error")));
           xhr.open("POST", `${API_BASE}/upload`);
+          if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
           xhr.send(formData);
         });
 
@@ -167,10 +172,7 @@ export default function UploadPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2
-            className="text-[17px] tracking-tight text-foreground"
-            style={{ fontFamily: "'Instrument Serif', serif" }}
-          >
+          <h2 className="text-[17px] font-semibold tracking-tight text-foreground">
             Upload Footage
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
@@ -190,8 +192,7 @@ export default function UploadPanel() {
         onChange={(e) => handleFiles(e.target.files)}
       />
 
-      <button
-        onClick={() => inputRef.current?.click()}
+      <div
         onDragOver={(e) => {
           e.preventDefault();
           setDragOver(true);
@@ -202,33 +203,64 @@ export default function UploadPanel() {
           setDragOver(false);
           handleFiles(e.dataTransfer.files);
         }}
-        disabled={processing}
-        className={`flex w-full flex-col items-center gap-2 rounded-xl border-[1.5px] border-dashed p-6 text-sm transition-colors ${
+        className={`rounded-2xl border-[1.5px] border-dashed p-5 transition-colors ${
           dragOver
-            ? "border-primary bg-primary/5 text-primary"
-            : "border-border bg-muted/30 text-muted-foreground hover:border-muted-foreground/30 hover:bg-muted/50"
-        } ${processing ? "cursor-wait opacity-60" : "cursor-pointer"}`}
+            ? "border-primary bg-primary/5"
+            : "border-border bg-muted/30"
+        } ${processing ? "cursor-wait opacity-60" : ""}`}
       >
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="opacity-60"
-        >
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="17 8 12 3 7 8" />
-          <line x1="12" y1="3" x2="12" y2="15" />
-        </svg>
-        <span className="text-[12px]">Drop files or click to browse</span>
-        <span className="text-[10px] text-muted-foreground/60">
-          JPG, PNG, MP4, MOV, DNG, CR2, ARW, NEF
-        </span>
-      </button>
+        <div className="flex flex-col items-center text-center">
+          <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-muted/40">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-muted-foreground"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          </span>
+          <div className="mt-3 text-sm font-medium text-foreground">
+            Drop files or click to browse
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            JPG, PNG, MP4, MOV, DNG, CR2, ARW, NEF
+          </div>
+
+          <div className="mt-4 grid w-full grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={processing}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-primary to-primary/80 px-3 py-2 text-sm font-semibold text-primary-foreground hover:from-primary/95 hover:to-primary/75 disabled:cursor-wait disabled:opacity-60"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7h5l2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+              </svg>
+              Browse files
+            </button>
+            <button
+              type="button"
+              disabled
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm font-semibold text-foreground hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4.93 19.07a10 10 0 0 1 14.14 0" />
+                <path d="M8.46 15.54a5 5 0 0 1 7.07 0" />
+                <path d="M12 12l.01 0" />
+              </svg>
+              Connect drone
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Upload error */}
       {uploadError && (
@@ -237,104 +269,105 @@ export default function UploadPanel() {
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex gap-2">
-        <Button
-          variant="default"
-          size="sm"
-          className="flex-1 text-xs"
-          onClick={() => setFileBrowserOpen(true)}
-        >
-          Browse files
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1 text-xs gap-1.5"
-          disabled
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
-          Connect drone
-        </Button>
-      </div>
-
       <Separator />
 
       {/* Project info */}
-      <div className="space-y-3">
+      <Card className="bg-muted/10 p-4 space-y-3">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Project
           </span>
-          <button className="text-[11px] text-primary hover:underline">
+          <button className="text-[11px] font-semibold text-primary hover:underline">
             Settings
           </button>
         </div>
 
-        <Card className="bg-muted/20 p-3 space-y-2">
-          <div className="flex items-baseline justify-between">
-            <span className="text-[13px] font-medium text-foreground">
-              {projectName}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[13px] font-medium text-foreground truncate">
+            {projectName}
+          </span>
+          {projectId && (
+            <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+              {projectId}
             </span>
-            {projectId && (
-              <span className="text-[11px] text-muted-foreground">
-                {projectId}
-              </span>
-            )}
-          </div>
-          <div className="flex gap-4 text-[11px] text-muted-foreground">
-            <div>
-              <span className="text-muted-foreground/60">Location</span>
-              <div className="text-foreground/80">{location || "—"}</div>
-            </div>
-            <div>
-              <span className="text-muted-foreground/60">Target</span>
-              <div className="text-foreground/80">{targetType}</div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Quality checks */}
-        {uploadedFiles.length > 0 && (
-          <div className="flex items-center gap-3">
-            <QualityCheck label="GPS" status={qualityChecks.gps} />
-            <QualityCheck label="Overlap" status={qualityChecks.overlap} />
-            <QualityCheck label="Exposure" status={qualityChecks.exposure} />
-            <span className="ml-auto text-[10px] text-muted-foreground">
-              {checksReady ? (
-                <span className="text-emerald-400">All good</span>
-              ) : (
-                "Checking..."
-              )}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Start reconstruction / Skip to Design */}
-      {uploadedFiles.length > 0 && !processing && (
-        <div className="space-y-2">
-          {!hasOnlyImages && (
-            <Button onClick={handleStartReconstruction} className="w-full">
-              Start reconstruction
-            </Button>
-          )}
-          {hasOnlyImages && (
-            <Button onClick={handleSkipToDesign} className="w-full">
-              Skip to Design
-            </Button>
-          )}
-          {!hasOnlyImages && backgroundImageUrl && (
-            <Button variant="outline" onClick={handleSkipToDesign} className="w-full text-xs">
-              Skip reconstruction (use photo only)
-            </Button>
           )}
         </div>
-      )}
+
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <div className="text-[11px] text-muted-foreground">Location</div>
+            <div className="mt-1 text-sm font-semibold text-foreground">
+              {location || "—"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <div className="text-[11px] text-muted-foreground">Target</div>
+            <div className="mt-1 text-sm font-semibold text-foreground">
+              {targetType}
+            </div>
+          </div>
+        </div>
+
+        {uploadedFiles.length > 0 && (
+          <div className="rounded-xl border border-border bg-muted/20 p-3">
+            <div className="flex items-center justify-between">
+              <div className="text-[11px] text-muted-foreground">
+                Quality checks
+              </div>
+              <span className="text-[11px] font-semibold text-emerald-400">
+                {checksReady ? "All good" : "Checking…"}
+              </span>
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <QualityCheck label="GPS" status={qualityChecks.gps} />
+              <QualityCheck label="Overlap" status={qualityChecks.overlap} />
+              <QualityCheck label="Exposure" status={qualityChecks.exposure} />
+            </div>
+          </div>
+        )}
+
+        {uploadedFiles.length > 0 && !processing && (
+          <div className="flex items-center gap-2 pt-1">
+            {hasOnlyImages ? (
+              <Button onClick={handleSkipToDesign} className="flex-1 gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 4V2m0 14v-2M8 9h2M20 9h2M17.8 11.8L19 13M15 9h.01M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5" />
+                </svg>
+                Skip to Design
+              </Button>
+            ) : (
+              <Button
+                onClick={handleStartReconstruction}
+                variant="outline"
+                className="flex-1 gap-2 bg-muted/30"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 4V2m0 14v-2M8 9h2M20 9h2M17.8 11.8L19 13M15 9h.01M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5" />
+                </svg>
+                Start reconstruction
+              </Button>
+            )}
+            <button
+              type="button"
+              disabled
+              aria-label="Import metadata"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-muted/30 text-muted-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <ellipse cx="12" cy="5" rx="9" ry="3" />
+                <path d="M3 5v14a9 3 0 0 0 18 0V5" />
+                <path d="M3 12a9 3 0 0 0 18 0" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {!hasOnlyImages && backgroundImageUrl && uploadedFiles.length > 0 && !processing && (
+          <Button variant="outline" onClick={handleSkipToDesign} className="w-full text-xs">
+            Skip reconstruction (use photo only)
+          </Button>
+        )}
+      </Card>
 
       <Separator />
 
@@ -356,13 +389,13 @@ export default function UploadPanel() {
             No files uploaded yet
           </p>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-2">
             {uploadedFiles.slice(0, 5).map((f) => (
               <div
                 key={f.id}
-                className="flex items-center gap-3 rounded-lg p-2 hover:bg-muted/30 group"
+                className="group flex items-center gap-3 rounded-xl border border-border bg-muted/10 p-3 hover:bg-muted/20"
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted/50 text-muted-foreground">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/30 text-muted-foreground">
                   {f.type.startsWith("video/") ? (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                   ) : (
@@ -417,24 +450,24 @@ export default function UploadPanel() {
 
 function QualityCheck({ label, status }: { label: string; status: boolean | null }) {
   return (
-    <div className="flex items-center gap-1">
-      <div
-        className={`h-3.5 w-3.5 rounded-full flex items-center justify-center ${
+    <div className="flex items-center gap-2 text-xs text-foreground/80">
+      <span
+        className={`inline-flex h-5 w-5 items-center justify-center rounded-lg border ${
           status === true
-            ? "bg-emerald-500/20 text-emerald-400"
+            ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-400"
             : status === false
-              ? "bg-destructive/20 text-destructive"
-              : "bg-muted text-muted-foreground/40"
+              ? "border-destructive/30 bg-destructive/15 text-destructive"
+              : "border-border bg-muted/40 text-muted-foreground/50"
         }`}
       >
         {status === true && (
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
         )}
         {status === false && (
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
         )}
-      </div>
-      <span className="text-[10px] text-muted-foreground">{label}</span>
+      </span>
+      {label}
     </div>
   );
 }

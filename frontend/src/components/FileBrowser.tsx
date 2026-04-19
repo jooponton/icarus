@@ -150,7 +150,7 @@ export default function FileBrowser() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col bg-card border-border gap-3">
         <DialogHeader>
-          <DialogTitle className="text-[17px] tracking-tight text-foreground" style={{ fontFamily: "'Instrument Serif', serif" }}>Browse Files</DialogTitle>
+          <DialogTitle className="text-[17px] font-semibold tracking-tight text-foreground">Browse Files</DialogTitle>
         </DialogHeader>
 
         <div className="flex items-center justify-between gap-3">

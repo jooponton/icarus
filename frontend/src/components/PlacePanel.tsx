@@ -28,7 +28,7 @@ export default function PlacePanel() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="text-[17px] tracking-tight text-foreground" style={{ fontFamily: "'Instrument Serif', serif" }}>Place Building</h2>
+        <h2 className="text-[17px] font-semibold tracking-tight text-foreground">Place Building</h2>
         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
           Use the gizmo in the viewport to position and rotate your building.
         </p>

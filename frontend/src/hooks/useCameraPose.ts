@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { apiFetch } from "../lib/api";
 import { useProjectStore } from "../store/projectStore";
 
 /**
@@ -26,7 +27,7 @@ export function useCameraPose() {
     let cancelled = false;
     setCameraPoseLoading(true);
 
-    fetch("/api/pose/estimate", {
+    apiFetch("/api/pose/estimate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_id: projectId, filename }),

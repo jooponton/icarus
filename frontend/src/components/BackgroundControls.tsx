@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
+import { useBackgroundDisplayUrl } from "../hooks/useBackgroundDisplayUrl";
 import { useProjectStore } from "../store/projectStore";
 
 export default function BackgroundControls() {
   const backgroundImageUrl = useProjectStore((s) => s.backgroundImageUrl);
+  // `/api/uploads/...` is JWT-gated, so `<img>` needs a blob: URL.
+  const backgroundDisplayUrl = useBackgroundDisplayUrl();
   const setBackgroundImageUrl = useProjectStore((s) => s.setBackgroundImageUrl);
   const uploadedFiles = useProjectStore((s) => s.uploadedFiles);
   const projectId = useProjectStore((s) => s.projectId);
@@ -30,11 +33,13 @@ export default function BackgroundControls() {
 
   return (
     <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2 rounded-lg bg-background/80 backdrop-blur-sm border border-border px-3 py-2">
-      <img
-        src={backgroundImageUrl}
-        alt="Background"
-        className="h-8 w-12 rounded object-cover border border-border"
-      />
+      {backgroundDisplayUrl && (
+        <img
+          src={backgroundDisplayUrl}
+          alt="Background"
+          className="h-8 w-12 rounded object-cover border border-border"
+        />
+      )}
 
       {imageFiles.length > 1 && (
         <select

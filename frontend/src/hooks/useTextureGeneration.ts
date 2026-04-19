@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
+import { apiFetch } from "../lib/api";
 import { useProjectStore } from "../store/projectStore";
 import type { BuildingSpec, PbrTextureUrls } from "../store/projectStore";
 
@@ -66,7 +67,7 @@ export function useTextureGeneration() {
   const pollStatus = useCallback(
     async (pid: string, hash: string) => {
       try {
-        const res = await fetch(`${API_BASE}/generate/textures/${pid}/status`);
+        const res = await apiFetch(`${API_BASE}/generate/textures/${pid}/status`);
         if (!res.ok) return;
         const data = await res.json();
 
@@ -105,7 +106,7 @@ export function useTextureGeneration() {
       setTextureStatus("generating");
 
       try {
-        const res = await fetch(`${API_BASE}/generate/textures/${projectId}`, {
+        const res = await apiFetch(`${API_BASE}/generate/textures/${projectId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildingSpec),

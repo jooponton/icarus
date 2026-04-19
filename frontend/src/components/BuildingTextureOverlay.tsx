@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiFetch } from "../lib/api";
 import { useProjectStore } from "../store/projectStore";
 import AtriaMark from "./AtriaMark";
 
@@ -55,7 +56,7 @@ export default function BuildingTextureOverlay() {
     let cancelled = false;
     const poll = async () => {
       try {
-        const r = await fetch(`/api/generate/textures/${projectId}/status`);
+        const r = await apiFetch(`/api/generate/textures/${projectId}/status`);
         if (!r.ok) return;
         const data = await r.json();
         if (cancelled) return;
@@ -114,10 +115,7 @@ export default function BuildingTextureOverlay() {
             </div>
           </div>
 
-          <p
-            className="mt-6 text-[20px] italic leading-tight text-foreground/90"
-            style={{ fontFamily: "'Instrument Serif', serif" }}
-          >
+          <p className="mt-6 text-[20px] italic leading-tight text-foreground/90">
             {STAGES[stageIdx]}…
           </p>
 

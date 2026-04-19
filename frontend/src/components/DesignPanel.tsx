@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { apiFetch } from "../lib/api";
 import { useProjectStore } from "../store/projectStore";
 import StatusBadge from "./StatusBadge";
 
@@ -28,7 +29,7 @@ export default function DesignPanel() {
       const controller = new AbortController();
       abortRef.current = controller;
       try {
-        const res = await fetch("/api/generate/validate", {
+        const res = await apiFetch("/api/generate/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildingSpec),
@@ -58,7 +59,7 @@ export default function DesignPanel() {
     <div className="space-y-5 pb-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-[17px] tracking-tight text-foreground" style={{ fontFamily: "'Instrument Serif', serif" }}>Design</h2>
+          <h2 className="text-[17px] font-semibold tracking-tight text-foreground">Design</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             {buildingSpec
               ? "Shape the building in the editor. Walls, slabs, items, roofs."

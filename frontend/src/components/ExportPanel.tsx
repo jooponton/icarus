@@ -62,7 +62,7 @@ export default function ExportPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-[17px] tracking-tight text-foreground" style={{ fontFamily: "'Instrument Serif', serif" }}>Export</h2>
+          <h2 className="text-[17px] font-semibold tracking-tight text-foreground">Export</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Configure format, quality, and delivery. Export will generate
             downloadable files.

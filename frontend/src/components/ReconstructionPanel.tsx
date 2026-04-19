@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { apiFetch } from "../lib/api";
 import { useProjectStore, type PipelineStage } from "../store/projectStore";
 import StatusBadge from "./StatusBadge";
 
@@ -120,7 +121,7 @@ export default function ReconstructionPanel() {
   const pollStatus = useCallback(async () => {
     if (!projectId) return;
     try {
-      const res = await fetch(`/api/reconstruct/${projectId}/status`);
+      const res = await apiFetch(`/api/reconstruct/${projectId}/status`);
       if (!res.ok) return;
       const data = await res.json();
 
@@ -174,7 +175,7 @@ export default function ReconstructionPanel() {
     setStartError(null);
 
     try {
-      const res = await fetch(`/api/reconstruct/${projectId}`, { method: "POST" });
+      const res = await apiFetch(`/api/reconstruct/${projectId}`, { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({ detail: "Unknown error" }));
         setStartError(data.detail || `Error ${res.status}`);
@@ -198,7 +199,7 @@ export default function ReconstructionPanel() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-[17px] tracking-tight text-foreground" style={{ fontFamily: "'Instrument Serif', serif" }}>Reconstruction</h2>
+          <h2 className="text-[17px] font-semibold tracking-tight text-foreground">Reconstruction</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             COLMAP + 3D Gaussian Splatting
           </p>

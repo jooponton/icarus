@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { apiFetch } from "../lib/api";
 import { useProjectStore } from "../store/projectStore";
 
 const STORAGE_KEY = "icarus_project_id";
@@ -31,7 +32,7 @@ export function useProjectRestore() {
 
     let cancelled = false;
 
-    fetch(`/api/projects/${projectId}`)
+    apiFetch(`/api/projects/${projectId}`)
       .then((r) => {
         if (r.status === 404) {
           // Project was deleted server-side — drop the stale id so the
